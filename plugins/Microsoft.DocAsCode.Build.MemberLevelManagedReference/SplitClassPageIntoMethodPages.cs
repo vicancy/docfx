@@ -19,8 +19,6 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
     [Export("ManagedReferenceDocumentProcessor", typeof(IDocumentBuildStep))]
     public class SplitClassPageIntoMethodPages : BaseDocumentBuildStep
     {
-        private const string MemberTypeKey = "memberType";
-        private const string TopicUidKey = "topicUid";
         private const char OverloadLastChar = '*';
         public override string Name => nameof(SplitClassPageIntoMethodPages);
 
@@ -176,14 +174,14 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
                 Name = GetName(key, primaryItem.Uid, firstMember.Type == MemberType.Constructor),
             };
 
-            newPrimaryItem.Metadata[MemberTypeKey] = firstMember.Type;
+            newPrimaryItem.Metadata[Constants.PropertyName.MemberType] = firstMember.Type;
             var newPage = ExtractPageViewModel(page, new List<ItemViewModel> { newPrimaryItem }.Concat(overload).ToList());
             var newModel = GenerateNewFileModel(model, newPage, overload.Key.Trim(OverloadLastChar));
             var tree = Convert(
                 newPrimaryItem,
                 new Dictionary<string, object>
                 {
-                    ["type"] = firstMember.Type
+                    [Constants.PropertyName.Type] = firstMember.Type
                 });
             return new ModelWrapper(newPage, newModel, tree);
         }
@@ -191,7 +189,7 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
         private string GetTopicUid(Dictionary<string, object> metadata)
         {
             object uid;
-            if (metadata != null && metadata.TryGetValue(TopicUidKey, out uid))
+            if (metadata != null && metadata.TryGetValue(Constants.PropertyName.TopicUid, out uid))
             {
                 return uid as string;
             }
@@ -236,14 +234,14 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
             var result = new TreeItem();
             result.Metadata = new Dictionary<string, object>()
             {
-                ["name"] = item.Name,
-                ["name.csharp"] = item.NameForCSharp,
-                ["name.vb"] = item.NameForVB,
-                ["fullName"] = item.FullName,
-                ["fullName.csharp"] = item.FullNameForCSharp,
-                ["fullName.vb"] = item.FullNameForVB,
-                ["topicUid"] = item.Uid,
-                ["type"] = item.Type.ToString(),
+                [Constants.PropertyName.Name] = item.Name,
+                [Constants.ExtensionMemerPrefix.Name + Constants.DevLang.CSharp] = item.NameForCSharp,
+                [Constants.ExtensionMemerPrefix.Name + Constants.DevLang.VB] = item.NameForVB,
+                [Constants.PropertyName.FullName] = item.FullName,
+                [Constants.ExtensionMemerPrefix.FullName + Constants.DevLang.CSharp] = item.FullNameForCSharp,
+                [Constants.ExtensionMemerPrefix.FullName + Constants.DevLang.VB] = item.FullNameForVB,
+                [Constants.PropertyName.TopicUid] = item.Uid,
+                [Constants.PropertyName.Type] = item.Type.ToString(),
             };
 
             if (metadata != null)
