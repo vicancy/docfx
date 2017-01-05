@@ -20,17 +20,20 @@
   "configurations": {
     "Debug": {
       "buildOptions": {
-        "define": [ "DEBUG", "TRACE" ]
+        "define": [ "DEBUG", "TRACE" ],
+        "copyToOutput": "resources/**"
       }
     },
     "Release": {
       "buildOptions": {
         "define": [ "TRACE" ],
-        "optimize": true
+        "optimize": true,
+        "copyToOutput": "resources/**"
       }
     }
   },
   "frameworks": {
     "net452": {}
-  }
+  },
+  "scripts": { "postcompile": "copy.cmd bin\\Debug\\net452\\resources" }
 }

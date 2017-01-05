@@ -23,5 +23,6 @@ namespace Microsoft.DocAsCode.DataContracts.ManagedReference
         Constructor,
         Method,
         Operator,
+        OverloadGroup,
     }
 }

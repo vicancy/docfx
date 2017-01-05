@@ -26,7 +26,6 @@ exports.transform = function (model)  {
   if (model.children) {
       model.children.forEach(function (item) { handleItem(item, model._gitContribute, model._gitUrlPattern); });
   }
-
   if (model.type) {
     switch (model.type.toLowerCase()) {
       case 'namespace':
@@ -42,6 +41,15 @@ exports.transform = function (model)  {
         if (model.children) groupChildren(model, classItems);
         model[namespaceItems[model.type.toLowerCase()].typePropertyName] = true;
         handleNamespace(model);
+        break;
+      case 'overloadgroup':
+        model.isOverloadGroup = true;
+        model[classItems[model.memberType.toLowerCase()].typePropertyName] = true;
+        if (model.children) groupChildren(model, classItems);
+        break;
+      case 'field':
+        model.isField = true;
+        if (model.children) groupChildren(model, classItems);
         break;
       default:
         break;
