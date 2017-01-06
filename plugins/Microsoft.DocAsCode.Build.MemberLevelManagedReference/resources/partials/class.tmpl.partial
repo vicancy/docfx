@@ -18,7 +18,9 @@
   {{/children.0}}
     {{#children}}
     <tr>
-      <td id="{{id}}" data-uid="{{uid}}"><xref href="{{uid}}" altProperty="fullName" displayProperty="name"/></td>
+      <td id="{{id}}" data-uid="{{uid}}">
+        <xref uid="{{uid}}" altProperty="fullName" displayProperty="name"/>
+      </td>
       <td class="markdown level1 summary">{{{summary}}}</td>
     </tr>
     {{/children}}    
@@ -33,10 +35,10 @@
 {{#extensionMethods}}
 <div>
   {{#definition}}
-    <xref href="{{definition}}" altProperty="fullName" displayProperty="nameWithType"/>
+    <xref uid="{{definition}}" altProperty="fullName" displayProperty="nameWithType"/>
   {{/definition}}
   {{^definition}}
-    <xref href="{{uid}}" altProperty="fullName" displayProperty="nameWithType"/>
+    <xref uid="{{uid}}" altProperty="fullName" displayProperty="nameWithType"/>
   {{/definition}}
 </div>
 {{/extensionMethods}}

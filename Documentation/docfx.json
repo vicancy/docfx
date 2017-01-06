@@ -58,8 +58,10 @@
     },
     "dest": "_site",
     "template": [
-      "default",
-      "template"
+      "C:\\code\\docfx\\src\\docfx.website.themes\\common",
+      "C:\\code\\docfx\\src\\docfx.website.themes\\default",
+      "template",
+      "C:\\code\\docfx\\plugins\\Microsoft.DocAsCode.Build.MemberLevelManagedReference\\bin\\Debug\\net452\\resources"
     ]
   }
 }

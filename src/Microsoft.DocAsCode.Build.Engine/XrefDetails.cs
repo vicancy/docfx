@@ -46,8 +46,8 @@ namespace Microsoft.DocAsCode.Build.Engine
         {
             if (node.Name != "xref") throw new NotSupportedException("Only xref node is supported!");
             var xref = new XRefDetails();
+            var rawUid = node.GetAttributeValue("href", null);
 
-            var rawUid = GetRawUid(node);
             NameValueCollection queryString = null;
             if (!string.IsNullOrEmpty(rawUid))
             {
@@ -73,6 +73,10 @@ namespace Microsoft.DocAsCode.Build.Engine
                     xref.Uid = HttpUtility.UrlDecode(others.Remove(queryIndex));
                     queryString = HttpUtility.ParseQueryString(others.Substring(queryIndex));
                 }
+            }
+            else
+            {
+                xref.Uid = node.GetAttributeValue("uid", null);
             }
 
             xref.InnerHtml = node.InnerHtml;

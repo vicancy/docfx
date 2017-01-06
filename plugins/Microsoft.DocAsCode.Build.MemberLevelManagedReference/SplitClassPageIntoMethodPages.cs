@@ -110,44 +110,79 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
             return true;
         }
 
-        private void RestructureTableOfContent(TreeItem tree, Dictionary<string, List<TreeItem>> treeMapping)
+        private void Restructure(TreeItem tree, Dictionary<string, List<TreeItem>> treeMapping)
         {
-            var navigator = new TreeNavigator(tree);
-            while (treeMapping.Count > 0)
+            if (tree == null)
             {
-                string currentUid = string.Empty;
-                var matched = navigator.MoveTo(s =>
-                {
-                    var tocItem = s as TreeItem;
-                    if (tocItem == null)
-                    {
-                        return false;
-                    }
+                return;
+            }
 
-                    // Only TopicUID is envolved in splitting
-                    // If TOC explicitly references to the .yml file, TOC will not change
-                    string itemUid = GetTopicUid(tocItem.Metadata);
-                    if (itemUid == null)
-                    {
-                        return false;
-                    }
-                    if (treeMapping.ContainsKey(itemUid))
-                    {
-                        currentUid = itemUid;
-                        return true;
-                    }
-                    return false;
-                });
-
-                if (matched)
+            if (tree.Items != null)
+            {
+                foreach (var item in tree.Items)
                 {
-                    foreach (var i in treeMapping[currentUid])
-                    {
-                        navigator.AppendChild(i);
-                    }
-                    treeMapping.Remove(currentUid);
+                    Restructure(item, treeMapping);
                 }
             }
+
+            string itemUid = GetTopicUid(tree.Metadata);
+            if (itemUid == null)
+            {
+                return;
+            }
+
+            List<TreeItem> items;
+            if (treeMapping.TryGetValue(itemUid, out items))
+            {
+                if (tree.Items == null)
+                {
+                    tree.Items = new List<TreeItem>();
+                }
+                tree.Items.AddRange(items);
+                treeMapping.Remove(itemUid);
+            }
+        }
+
+        private void RestructureTableOfContent(TreeItem tree, Dictionary<string, List<TreeItem>> treeMapping)
+        {
+            Restructure(tree, treeMapping);
+            //var navigator = new TreeNavigator(tree);
+
+            //while (treeMapping.Count > 0)
+            //{
+            //    string currentUid = string.Empty;
+            //    var matched = navigator.MoveTo(s =>
+            //    {
+            //        var tocItem = s as TreeItem;
+            //        if (tocItem == null)
+            //        {
+            //            return false;
+            //        }
+
+            //        // Only TopicUID is envolved in splitting
+            //        // If TOC explicitly references to the .yml file, TOC will not change
+            //        string itemUid = GetTopicUid(tocItem.Metadata);
+            //        if (itemUid == null)
+            //        {
+            //            return false;
+            //        }
+            //        if (treeMapping.ContainsKey(itemUid))
+            //        {
+            //            currentUid = itemUid;
+            //            return true;
+            //        }
+            //        return false;
+            //    });
+
+            //    if (matched)
+            //    {
+            //        foreach (var i in treeMapping[currentUid])
+            //        {
+            //            navigator.AppendChild(i);
+            //        }
+            //        treeMapping.Remove(currentUid);
+            //    }
+            //}
         }
 
         private ModelWrapper GenerateNonOverloadPage(PageViewModel page, FileModel model, ItemViewModel item)
@@ -165,6 +200,11 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
             // For ctor, rename #ctor to class name
             var firstMember = overload.First();
             var key = overload.Key;
+
+            if (firstMember.Type == MemberType.Constructor)
+            {
+
+            }
 
             var newPrimaryItem = new ItemViewModel
             {
@@ -291,8 +331,9 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
             var initialFile = model.FileAndType.File;
             var extension = Path.GetExtension(initialFile);
             var directory = Path.GetDirectoryName(initialFile);
-            var newFileName = PathUtility.ToValidFilePath(key, '-');
-            var newFileAndType = new FileAndType(model.FileAndType.BaseDir, string.Join("/", directory, newFileName + extension), model.FileAndType.Type, model.FileAndType.SourceDir, model.FileAndType.DestinationDir);
+            var newFileName = PathUtility.ToValidFilePath(key, '-').Replace('#', '-') + extension;
+            var filePath = Path.Combine(directory, newFileName).ToNormalizedPath();
+            var newFileAndType = new FileAndType(model.FileAndType.BaseDir, filePath, model.FileAndType.Type, model.FileAndType.SourceDir, model.FileAndType.DestinationDir);
             var newModel = new FileModel(newFileAndType, newPage, null, model.Serializer);
             newModel.LocalPathFromRoot = model.LocalPathFromRoot;
             newModel.Uids = CalculateUids(newPage, model.LocalPathFromRoot);
