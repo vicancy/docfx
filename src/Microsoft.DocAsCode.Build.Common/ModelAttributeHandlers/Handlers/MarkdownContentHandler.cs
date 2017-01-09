@@ -10,6 +10,7 @@ namespace Microsoft.DocAsCode.Build.Common
     using System.Linq;
     using System.Reflection;
 
+    using Microsoft.DocAsCode.Common;
     using Microsoft.DocAsCode.DataContracts.Common.Attributes;
     using Microsoft.DocAsCode.Plugins;
 
@@ -17,11 +18,11 @@ namespace Microsoft.DocAsCode.Build.Common
     {
         private readonly ConcurrentDictionary<Type, MarkdownContentHandlerImpl> _cache = new ConcurrentDictionary<Type, MarkdownContentHandlerImpl>();
 
-        public void Handle(object obj, HandleModelAttributesContext context)
+        public object Handle(object obj, HandleModelAttributesContext context)
         {
             if (obj == null)
             {
-                return;
+                return null;
             }
 
             if (context == null)
@@ -34,8 +35,13 @@ namespace Microsoft.DocAsCode.Build.Common
                 throw new ArgumentNullException(nameof(context.Host));
             }
 
+            if (context.SkipMarkup)
+            {
+                return obj;
+            }
+
             var type = obj.GetType();
-            _cache.GetOrAdd(type, new MarkdownContentHandlerImpl(type, this)).Handle(obj, context);
+            return _cache.GetOrAdd(type, new MarkdownContentHandlerImpl(type, this)).Handle(obj, context);
         }
 
         private sealed class MarkdownContentHandlerImpl : BaseModelAttributeHandler<MarkdownContentAttribute>
@@ -44,6 +50,36 @@ namespace Microsoft.DocAsCode.Build.Common
 
             public MarkdownContentHandlerImpl(Type type, IModelAttributeHandler handler) : base(type, handler)
             {
+            }
+
+            public override object Handle(object obj, HandleModelAttributesContext context)
+            {
+                if (obj == null)
+                {
+                    return null;
+                }
+
+                if (context == null)
+                {
+                    throw new ArgumentNullException(nameof(context));
+                }
+
+                // Special handle for *content
+
+                if (obj.GetType() == typeof(string))
+                {
+                    object marked;
+                    if (TryMarkupPlaceholderContent((string)obj, context, out marked))
+                    {
+                        return marked;
+                    }
+                    else
+                    {
+                        return obj;
+                    }
+                }
+
+                return base.Handle(obj, context);
             }
 
             protected override void HandleCurrentProperty(object declaringObject, PropertyInfo currentPropertyInfo, HandleModelAttributesContext context)
@@ -66,6 +102,70 @@ namespace Microsoft.DocAsCode.Build.Common
                 }
             }
 
+            protected override void HandleDictionaryType(object declaringObject, PropertyInfo currentPropertyInfo, HandleModelAttributesContext context)
+            {
+                var type = currentPropertyInfo.PropertyType;
+                if (type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                {
+                    dynamic dict = currentPropertyInfo.GetValue(declaringObject);
+                    if (dict != null && dict.Count > 0)
+                    {
+                        var keys = new List<dynamic>(dict.Keys);
+                        foreach (var key in keys)
+                        {
+                            var val = dict[key];
+                            var handled = Handler.Handle(val, context);
+                            if (!ReferenceEquals(val, handled))
+                            {
+                                dict[key] = handled;
+                            }
+                        }
+                    }
+                }
+                base.HandleDictionaryType(declaringObject, currentPropertyInfo, context);
+            }
+
+            protected override void HandleEnumerableType(object declaringObject, PropertyInfo currentPropertyInfo, HandleModelAttributesContext context)
+            {
+                var type = currentPropertyInfo.PropertyType;
+                if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+                {
+                    dynamic list = currentPropertyInfo.GetValue(declaringObject);
+                    if (list != null && list.Count > 0)
+                    {
+                        for(var i = 0; i < list.Count; i++)
+                        {
+                            var val = list[i];
+                            var handled = Handler.Handle(val, context);
+                            if (!ReferenceEquals(val, handled))
+                            {
+                                list[i] = handled;
+                            }
+                        }
+                    }
+                }
+
+                base.HandleEnumerableType(declaringObject, currentPropertyInfo, context);
+            }
+
+            protected override void HandleNonPrimitiveType(object declaringObject, PropertyInfo currentPropertyInfo, HandleModelAttributesContext context)
+            {
+                if (context.EnableContentPlaceholder)
+                {
+                    var type = currentPropertyInfo.PropertyType;
+                    if (type == typeof(string))
+                    {
+                        object result;
+                        if (TryMarkupPlaceholderContent((string)currentPropertyInfo.GetValue(declaringObject), context, out result))
+                        {
+                            currentPropertyInfo.SetValue(declaringObject, result);
+                        }
+                    }
+                }
+
+                base.HandleNonPrimitiveType(declaringObject, currentPropertyInfo, context);
+            }
+
             protected override PropInfo[] GetProps(Type type)
             {
                 return (from prop in ReflectionHelper.GetSettableProperties(type)
@@ -77,39 +177,41 @@ namespace Microsoft.DocAsCode.Build.Common
                         }).ToArray();
             }
 
-            protected override bool ShouldHandle(PropInfo currentPropInfo, object declaringObject, HandleModelAttributesContext context)
+
+            private bool TryMarkupPlaceholderContent(string obj, HandleModelAttributesContext context, out object result)
             {
-                if (context.SkipMarkup)
+                var marked = MarkupPlaceholderContent(obj, context);
+                if (marked != null)
                 {
-                    return false;
+                    result = marked;
+                    return true;
                 }
+                result = null;
+                return false;
+            }
 
-                // MarkdownContent will be marked and set back to the property, so the property type must be assignable from string
-                if (!currentPropInfo.Prop.PropertyType.IsAssignableFrom(typeof(string)))
-                {
-                    if (currentPropInfo.Attr != null)
-                    {
-                        throw new NotSupportedException($"Type {declaringObject.GetType()} is NOT a supported type for {nameof(MarkdownContentAttribute)}");
-                    }
-
-                    return false;
-                }
-
+            private string MarkupPlaceholderContent(string obj, HandleModelAttributesContext context)
+            {
                 if (context.EnableContentPlaceholder)
                 {
-                    var currentValue = currentPropInfo.Prop.GetValue(declaringObject) as string;
-                    if (currentValue != null && IsPlaceholderContent(currentValue))
+                    var currentValue = obj;
+                    if (IsPlaceholderContent(currentValue))
                     {
-                        return true;
+                        context.ContainsPlaceholder = true;
+                        var marked = context.PlaceholderContent;
+                        if (currentValue != marked)
+                        {
+                            return marked;
+                        }
                     }
                 }
 
-                return base.ShouldHandle(currentPropInfo, declaringObject, context);
+                return null;
             }
 
             private bool IsPlaceholderContent(string content)
             {
-                return content.Trim() == ContentPlaceholder;
+                return content != null && content.Trim() == ContentPlaceholder;
             }
 
             private string Markup(string content, HandleModelAttributesContext context)
@@ -121,6 +223,7 @@ namespace Microsoft.DocAsCode.Build.Common
 
                 if (context.EnableContentPlaceholder && IsPlaceholderContent(content))
                 {
+                    context.ContainsPlaceholder = true;
                     return context.PlaceholderContent;
                 }
 
@@ -133,25 +236,9 @@ namespace Microsoft.DocAsCode.Build.Common
                 var mr = host.Markup(content, context.FileAndType);
                 context.LinkToUids.UnionWith(mr.LinkToUids);
                 context.LinkToFiles.UnionWith(mr.LinkToFiles);
-                AddRange(context.FileLinkSources, mr.FileLinkSources);
-                AddRange(context.UidLinkSources, mr.UidLinkSources);
+                context.FileLinkSources = context.FileLinkSources.Merge(mr.FileLinkSources.Select(s => new KeyValuePair<string, IEnumerable<LinkSourceInfo>>(s.Key, s.Value)));
+                context.UidLinkSources = context.UidLinkSources.Merge(mr.UidLinkSources.Select(s => new KeyValuePair<string, IEnumerable<LinkSourceInfo>>(s.Key, s.Value)));
                 return mr.Html;
-            }
-
-            private static void AddRange(Dictionary<string, List<LinkSourceInfo>> left, ImmutableDictionary<string, ImmutableList<LinkSourceInfo>> right)
-            {
-                foreach (var pair in right)
-                {
-                    List<LinkSourceInfo> list;
-                    if (left.TryGetValue(pair.Key, out list))
-                    {
-                        list.AddRange(pair.Value);
-                    }
-                    else
-                    {
-                        left[pair.Key] = pair.Value.ToList();
-                    }
-                }
             }
         }
     }
