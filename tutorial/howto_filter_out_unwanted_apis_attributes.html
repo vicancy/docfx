@@ -5,10 +5,10 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>How-to: Filter Out Unwanted APIs or Attributes  | DocFX website </title>
+    <title>How-to: Filter Out Unwanted APIs or Attributes  </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="How-to: Filter Out Unwanted APIs or Attributes  | DocFX website ">
-    <meta name="generator" content="docfx 2.9.3.0">
+    <meta name="title" content="How-to: Filter Out Unwanted APIs or Attributes  ">
+    <meta name="generator" content="docfx 2.15.0.424">
     
     <link rel="shortcut icon" href="../favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -16,7 +16,8 @@
     <link rel="stylesheet" href="../styles/main.css">
     <meta property="docfx:navrel" content="../toc.html">
     <meta property="docfx:tocrel" content="toc.html">
-    <meta property="docfx:rel" content="../">
+    
+    
   </head>
   <body data-spy="scroll" data-target="#affix">
     <div id="wrapper">
@@ -54,14 +55,6 @@
           </div>
         </div>
       </header>
-      <div class="container body-content">
-        
-        <div id="search-results">
-          <div class="search-list"></div>
-          <div class="sr-items"></div>
-          <ul id="pagination"></ul>
-        </div>
-      </div>
       <div role="main" class="container body-content hide-when-search">
         
         <div class="sidenav hide-when-search">
@@ -109,11 +102,10 @@
 <h2 id="the-format-of-the-filter-configuration-file">The format of the filter configuration file</h2>
 <h3 id="1-api-filter-rules">1. API Filter Rules</h3>
 <p>To filter out APIs, you could specify <code>apiRules</code> with a list of <code>exclude</code> or <code>include</code> rules.</p>
-<blockquote><p><em>Note</em></p>
-<p>The rules would be executed sequentially and the matching process would stop once one rule is matched. 
-Namely, you need to put the most detailed rule in the top.</p>
-<p>If no rule is matched the API would be included by default.</p>
-</blockquote>
+<div class="NOTE"><h5>Note</h5><p>The rules would be executed sequentially and the matching process would stop once one rule is matched.
+Namely, you need to put the most detailed rule in the top.
+If no rule is matched the API would be included by default.</p>
+</div>
 <h4 id="1-exclude-or-include-apis-by-matching-their-uid-with-the-regex-uidregex">1) <code>exclude</code> or <code>include</code> APIs by matching their uid with the Regex <code>uidRegex</code>.</h4>
 <p>The sample below excludes all APIs whose uids start with &#39;Microsoft.DevDiv&#39; except those that start with &#39;Microsoft.DevDiv.SpecialCase&#39;.</p>
 <pre><code>  - include:
@@ -136,12 +128,11 @@ Namely, you need to put the most detailed rule in the top.</p>
 <li><code>Method</code></li>
 <li><code>Property</code></li>
 </ul>
-<blockquote><p><em>Note</em></p>
-<p><code>Type</code> could be <code>Class</code>, <code>Struct</code>, <code>Enum</code>, <code>Interface</code>, or <code>Delegate</code>. <code>Member</code> could be <code>Event</code>, <code>Field</code>, <code>Method</code>, or <code>Property</code>.</p>
+<div class="NOTE"><h5>Note</h5><p><code>Type</code> could be <code>Class</code>, <code>Struct</code>, <code>Enum</code>, <code>Interface</code>, or <code>Delegate</code>. <code>Member</code> could be <code>Event</code>, <code>Field</code>, <code>Method</code>, or <code>Property</code>.</p>
 <p><code>Namespace</code> is flattened. Namely, excluding namespace &#39;A.B&#39; has nothing to do with namespace &#39;A.B.C&#39;.</p>
 <p>If a namespace is excluded, all types/members defined in the namespace would also be excluded.
 If a type is excluded, all members defined in the type would also be excluded.</p>
-</blockquote>
+</div>
 <p>The below sample would exclude all APIs whose uid starts with &#39;Microsoft.DevDiv&#39; and type is <code>Type</code>, namely <code>Class</code>, <code>Struct</code>,
 <code>Enum</code>, <code>Interface</code>, or <code>Delegate</code>.</p>
 <pre><code>  - exclude:
@@ -150,7 +141,8 @@ If a type is excluded, all members defined in the type would also be excluded.</
 </code></pre><h4 id="3-exclude-or-include-apis-by-containing-matched-attributes">3) <code>exclude</code> or <code>include</code> APIs by containing matched attributes.</h4>
 <p>You can specify an attribute by its <code>uid</code>, <code>ctorArguments</code> and <code>ctorNamedArguments</code>.</p>
 <blockquote><p><em>Note</em></p>
-<p><code>ctorArguments</code> requires a full match of the attribute&#39;s constructor arguments, while <code>ctorNamedArguments</code> supports a partial match.
+</blockquote>
+<blockquote><p><code>ctorArguments</code> requires a full match of the attribute&#39;s constructor arguments, while <code>ctorNamedArguments</code> supports a partial match.
 Namely, <code>ctorArguments</code> should contain all the arguments while <code>ctorNamedArguments</code> could contain a subset of the named arguments. </p>
 </blockquote>
 <p>The sample below excludes all APIs which have EditorBrowsableAttribute and its constructor argument is EditorBrowsableState.Never.</p>
@@ -277,7 +269,7 @@ attributeRules:
               <div class="contribution">
                 <ul class="nav">
                   <li>
-                    <a href="https://github.com/dotnet/docfx/blob/dev/Documentation/tutorial/howto_filter_out_unwanted_apis_attributes.md/#L1" class="contribution-link">Improve this Doc</a>
+                    <a href="https://github.com/dotnet/docfx/blob/doc/Documentation/tutorial/howto_filter_out_unwanted_apis_attributes.md/#L1" class="contribution-link">Improve this Doc</a>
                   </li>
                 </ul>
               </div>

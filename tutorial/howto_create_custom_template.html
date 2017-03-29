@@ -5,10 +5,10 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>How-to: Create A Custom Template | DocFX website </title>
+    <title>How-to: Create A Custom Template </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="How-to: Create A Custom Template | DocFX website ">
-    <meta name="generator" content="docfx 2.9.3.0">
+    <meta name="title" content="How-to: Create A Custom Template ">
+    <meta name="generator" content="docfx 2.15.0.424">
     
     <link rel="shortcut icon" href="../favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -16,7 +16,8 @@
     <link rel="stylesheet" href="../styles/main.css">
     <meta property="docfx:navrel" content="../toc.html">
     <meta property="docfx:tocrel" content="toc.html">
-    <meta property="docfx:rel" content="../">
+    
+    
   </head>
   <body data-spy="scroll" data-target="#affix">
     <div id="wrapper">
@@ -54,14 +55,6 @@
           </div>
         </div>
       </header>
-      <div class="container body-content">
-        
-        <div id="search-results">
-          <div class="search-list"></div>
-          <div class="sr-items"></div>
-          <ul id="pagination"></ul>
-        </div>
-      </div>
       <div role="main" class="container body-content hide-when-search">
         
         <div class="sidenav hide-when-search">
@@ -99,7 +92,7 @@
 }
 </code></pre><p>Update the file <code>conceptual.html.primary.tmpl</code> with the following content:</p>
 <pre><code class="lang-mustache">&lt;h1&gt;{{_extra_property}}&lt;/h1&gt;
-{{{conceptual}}}
+{{{conceptual}}}    
 </code></pre><p>In the documentation project, run <code>docfx build docfx.json -t c:/docfx_howto/simple_template --serve</code>.</p>
 <p>Open <a href="http://localhost:8080">http://localhost:8080</a> and you can see <code>_extra_property</code> is added to the web page.</p>
 <p><img src="images/web_page_with_extra_property.png" alt="Updated Web Page"></p>
@@ -121,9 +114,11 @@
 <p>Now the warning message <em>There is no template processing document type(s): Toc</em> disappears because the default template contains <em>Renderer</em> to handle TOC files.</p>
 <p>Open <a href="http://localhost:8080/toc.html">http://localhost:8080/toc.html</a> and you can see a toc web page.
 <img src="images/toc_web_page.png" alt="TOC Web Page"></p>
-<blockquote><p>Tip: Run <code>docfx template export default</code> to view what&#39;s inside the default template.</p>
-<p>NOTE: It is possible that DocFX updates its embedded templates when a new version is released. So please make sure to re-export the template if you overwrite or are dependent on it in your custom template.</p>
-</blockquote>
+<div class="TIP"><h5>Tip</h5><p>Run <code>docfx template export default</code> to view what&#39;s inside the default template.</p>
+</div>
+<div class="NOTE"><h5>Note</h5><p>It is possible that DocFX updates its embedded templates when a new version is released.
+So please make sure to re-export the template if you overwrite or are dependent on it in your custom template.</p>
+</div>
 <h2 id="extension-for-preprocessor-file">Extension for <em>Preprocessor</em> file</h2>
 <p>If you want to modify some properties based on DocFX <code>default</code> template&#39;s <em>Preprocessor</em>, you can use <em>Preprocessor</em> extension file to achieve this.</p>
 <p>For example, if you want to add a property to the managed reference&#39;s data model after <code>default</code> template&#39;s <em>Preprocessor</em>, you can update the file <code>ManagedReference.extension.js</code> in your custom template with the following content:</p>
@@ -151,7 +146,7 @@ exports.postTransform = function (model) {
               <div class="contribution">
                 <ul class="nav">
                   <li>
-                    <a href="https://github.com/dotnet/docfx/blob/dev/Documentation/tutorial/howto_create_custom_template.md/#L1" class="contribution-link">Improve this Doc</a>
+                    <a href="https://github.com/dotnet/docfx/blob/doc/Documentation/tutorial/howto_create_custom_template.md/#L1" class="contribution-link">Improve this Doc</a>
                   </li>
                 </ul>
               </div>

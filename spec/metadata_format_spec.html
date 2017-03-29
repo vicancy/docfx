@@ -5,10 +5,10 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>Doc-as-Code: Metadata Format Specification | DocFX website </title>
+    <title>Doc-as-Code: Metadata Format Specification </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="Doc-as-Code: Metadata Format Specification | DocFX website ">
-    <meta name="generator" content="docfx 2.9.3.0">
+    <meta name="title" content="Doc-as-Code: Metadata Format Specification ">
+    <meta name="generator" content="docfx 2.15.0.424">
     
     <link rel="shortcut icon" href="../favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -16,7 +16,8 @@
     <link rel="stylesheet" href="../styles/main.css">
     <meta property="docfx:navrel" content="../toc.html">
     <meta property="docfx:tocrel" content="toc.html">
-    <meta property="docfx:rel" content="../">
+    
+    
   </head>
   <body data-spy="scroll" data-target="#affix">
     <div id="wrapper">
@@ -54,14 +55,6 @@
           </div>
         </div>
       </header>
-      <div class="container body-content">
-        
-        <div id="search-results">
-          <div class="search-list"></div>
-          <div class="sr-items"></div>
-          <ul id="pagination"></ul>
-        </div>
-      </div>
       <div role="main" class="container body-content hide-when-search">
         
         <div class="sidenav hide-when-search">
@@ -246,7 +239,8 @@ references:
 <p>Reference section also contains a list of <em>items</em>. These <em>items</em> serve as the references by <em>items</em> in <em>item section</em> and won&#39;t show up in documentation. Also, reference <em>item</em> doesn&#39;t need to have full <em>properties</em>, it just contains necessary information needed by its referrer (for example, name or URL).</p>
 <p>In metadata file, all <em>items</em> <strong>MUST</strong> be referenced by <em>UID</em>.</p>
 <blockquote><p>It&#39;s <strong>RECOMMENDED</strong> to include all referenced <em>items</em> in reference section. This makes the file self-contained and easy to render at runtime.</p>
-<p>Many programming languages have the concept of &quot;template instantiation&quot;. For example, in C#, you can create a new type <code>List&lt;int&gt;</code> from <code>List&lt;T&gt;</code> with argument <code>int</code>. You can create a reference for &quot;template instances&quot;. For example, for a class inherited from <code>List&lt;int&gt;</code>:</p>
+</blockquote>
+<blockquote><p>Many programming languages have the concept of &quot;template instantiation&quot;. For example, in C#, you can create a new type <code>List&lt;int&gt;</code> from <code>List&lt;T&gt;</code> with argument <code>int</code>. You can create a reference for &quot;template instances&quot;. For example, for a class inherited from <code>List&lt;int&gt;</code>:</p>
 </blockquote>
 <pre><code class="lang-yaml">items:
 - uid: NumberList
@@ -301,7 +295,7 @@ For example, to cross reference <code>System.String</code>:</p>
 <p>When rendering references in Markdown, they will expand into a link with the <em>item</em>&#39;s name as link title. You can also customize the link title using the standard syntax of Markdown:</p>
 <pre><code class="lang-markdown">[Dictionary](xref:System.Collections.Generic.Dictionary`2)&lt;[String](xref:System.String), [String](xref:System.String)&gt;
 </code></pre><p>Will be rendered to:
-<a class="xref" href="https://msdn.microsoft.com/en-us/library/xfhwa508(v=vs.110).aspx">Dictionary</a>&lt;<a class="xref" href="https://msdn.microsoft.com/en-us/library/system.string(v=vs.110).aspx">String</a>, <a class="xref" href="https://msdn.microsoft.com/en-us/library/system.string(v=vs.110).aspx">String</a>&gt;</p>
+<a href="xref:System.Collections.Generic.Dictionary`2">Dictionary</a>&lt;<a href="xref:System.String">String</a>, <a href="xref:System.String">String</a>&gt;</p>
 <p>Besides <em>UID</em>, we also allow referencing items using <em>ID</em> and <em>alias</em>, in the Markdown processor, the below algorithm <strong>SHOULD</strong> be implemented to resolve references.</p>
 <p>Check whether the reference matches:</p>
 <ol>
@@ -321,7 +315,7 @@ For example, to cross reference <code>System.String</code>:</p>
               <div class="contribution">
                 <ul class="nav">
                   <li>
-                    <a href="https://github.com/dotnet/docfx/blob/dev/Documentation/spec/metadata_format_spec.md/#L1" class="contribution-link">Improve this Doc</a>
+                    <a href="https://github.com/dotnet/docfx/blob/doc/Documentation/spec/metadata_format_spec.md/#L1" class="contribution-link">Improve this Doc</a>
                   </li>
                 </ul>
               </div>
