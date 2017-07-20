@@ -13,20 +13,32 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
     using Microsoft.DocAsCode.Common;
     using Microsoft.DocAsCode.DataContracts.Common;
     using Microsoft.DocAsCode.Plugins;
+    using Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers;
+    using System.Linq;
 
-    // [Export(nameof(SchemaDrivenDocumentProcessor), typeof(IDocumentBuildStep))]
-    public class BuildSchemaBasedDocument : BaseDocumentBuildStep, ISupportIncrementalBuildStep
+    [Export(nameof(SchemaDrivenDocumentProcessor), typeof(IDocumentBuildStep))]
+    public class BuildSchemaBasedDocument : BuildReferenceDocumentBase, ISupportIncrementalBuildStep
     {
-        private const string ConceptualKey = Constants.PropertyName.Conceptual;
         private const string DocumentTypeKey = "documentType";
-
+        private readonly SchemaProcessor _schemaProcessor = new SchemaProcessor();
         public override string Name => nameof(BuildSchemaBasedDocument);
 
         public override int BuildOrder => 0;
 
-        public override void Build(FileModel model, IHostService host)
+        protected override void BuildArticle(IHostService host, FileModel model)
         {
-            throw new NotImplementedException();
+            var content = model.Content;
+            var context = new ProcessContext();
+            DSchema schema = model.Properties.Schema;
+            content = _schemaProcessor.Process(content, schema, context);
+            model.LinkToUids = model.LinkToUids.Union(context.LinkToUids);
+            model.LinkToFiles = model.LinkToFiles.Union(context.LinkToFiles);
+            model.FileLinkSources = model.FileLinkSources.ToDictionary(v => v.Key, v => v.Value.ToList())
+                .Merge(context.FileLinkSources.Select(i => new KeyValuePair<string, IEnumerable<LinkSourceInfo>>(i.Key, i.Value)))
+                .ToImmutableDictionary(v => v.Key, v => v.Value.ToImmutableList());
+            model.UidLinkSources = model.UidLinkSources.ToDictionary(v => v.Key, v => v.Value.ToList())
+                .Merge(context.UidLinkSources.Select(i => new KeyValuePair<string, IEnumerable<LinkSourceInfo>>(i.Key, i.Value)))
+                .ToImmutableDictionary(v => v.Key, v => v.Value.ToImmutableList());
         }
 
         #region ISupportIncrementalBuildStep Members

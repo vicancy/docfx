@@ -17,6 +17,10 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
     using Microsoft.DocAsCode.Plugins;
 
     using Newtonsoft.Json;
+    using System.Reflection;
+    using System.Composition.Hosting;
+    using Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers;
+    using System.Linq;
 
     // [Export(typeof(IDocumentProcessor))]
     public class SchemaDrivenDocumentProcessor
@@ -25,38 +29,161 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
         #region Fields
 
         private readonly ResourcePoolManager<JsonSerializer> _serializerPool;
-
+        private readonly string _schemaName;
+        private readonly DSchema _schema;
         #endregion
 
         #region Constructors
 
-        public SchemaDrivenDocumentProcessor()
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="schemaType">For landingpage.schema.json, it is landingpage</param>
+        public SchemaDrivenDocumentProcessor(DSchema schema, IEnumerable<Assembly> assemblies)
         {
+            if (string.IsNullOrWhiteSpace(schema.Title))
+            {
+                throw new ArgumentException("Title for schema must not be empty");
+            }
+            _schemaName = _schema.Title;
+            _schema = schema;
+            LoadBuildSteps(assemblies);
             _serializerPool = new ResourcePoolManager<JsonSerializer>(GetSerializer, 0x10);
+        }
+
+        public void LoadBuildSteps(IEnumerable<Assembly> assemblies)
+        {
+            var configuration = new ContainerConfiguration();
+            foreach (var assembly in assemblies)
+            {
+                if (assembly != null)
+                {
+                    configuration.WithAssembly(assembly);
+                }
+            }
+
+            try
+            {
+                var container = configuration.CreateContainer();
+                container.SatisfyImports(this);
+                var commonSteps = container.GetExports<IDocumentBuildStep>(nameof(SchemaDrivenDocumentProcessor));
+                var schemaSpecificSteps = container.GetExports<IDocumentBuildStep>($"{nameof(SchemaDrivenDocumentProcessor)}.{_schemaName}");
+                BuildSteps = commonSteps.Union(schemaSpecificSteps).ToList();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                Logger.LogError($"Error when get composition container: {ex.Message}, loader exceptions: {(ex.LoaderExceptions != null ? string.Join(", ", ex.LoaderExceptions.Select(e => e.Message)) : "none")}");
+                throw;
+            }
         }
 
         #endregion
 
         #region IDocumentProcessor Members
 
-        [ImportMany(nameof(SchemaDrivenDocumentProcessor))]
         public override IEnumerable<IDocumentBuildStep> BuildSteps { get; set; }
 
-        public override string Name => nameof(SchemaDrivenDocumentProcessor);
+        public override string Name => _schema.Title;
 
         public override ProcessingPriority GetProcessingPriority(FileAndType file)
         {
-            throw new NotImplementedException();
+            switch (file.Type)
+            {
+                case DocumentType.Article:
+                    if (".yml".Equals(Path.GetExtension(file.File), StringComparison.OrdinalIgnoreCase) ||
+                        ".yaml".Equals(Path.GetExtension(file.File), StringComparison.OrdinalIgnoreCase))
+                    {
+                        var mime = YamlMime.ReadMime(file.File);
+                        if (string.Equals(mime, _schemaName))
+                        {
+                            return ProcessingPriority.Normal;
+                        }
+
+                        return ProcessingPriority.NotSupported;
+                    }
+
+                    break;
+                case DocumentType.Overwrite:
+                    if (".md".Equals(Path.GetExtension(file.File), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ProcessingPriority.Normal;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            return ProcessingPriority.NotSupported;
         }
 
         public override FileModel Load(FileAndType file, ImmutableDictionary<string, object> metadata)
         {
-            throw new NotImplementedException();
+            switch (file.Type)
+            {
+                case DocumentType.Article:
+                    // TODO: Support dynamic in YAML deserializer
+                    var content = YamlUtility.Deserialize<object>(file.File);
+                    content = DynamicConverter.Convert(content);
+
+                    var localPathFromRoot = PathUtility.MakeRelativePath(EnvironmentContext.BaseDirectory, EnvironmentContext.FileAbstractLayer.GetPhysicalPath(file.File));
+
+                    var fm = new FileModel(
+                        file,
+                        content,
+                        serializer: new BinaryFormatter())
+                    {
+                        LocalPathFromRoot = localPathFromRoot,
+                    };
+                    fm.Properties.Schema = _schema;
+                    return fm;
+                case DocumentType.Overwrite:
+                    return OverwriteDocumentReader.Read(file);
+                default:
+                    throw new NotSupportedException();
+            }
         }
 
         public override SaveResult Save(FileModel model)
         {
-            throw new NotImplementedException();
+            if (model.Type != DocumentType.Article)
+            {
+                throw new NotSupportedException();
+            }
+
+            var result = new SaveResult
+            {
+                DocumentType = model.DocumentType ?? _schemaName,
+                FileWithoutExtension = Path.ChangeExtension(model.File, null),
+                LinkToFiles = model.LinkToFiles.ToImmutableArray(),
+                LinkToUids = model.LinkToUids,
+                FileLinkSources = model.FileLinkSources,
+                UidLinkSources = model.UidLinkSources,
+            };
+            if (model.Properties.XrefSpec != null)
+            {
+                result.XRefSpecs = ImmutableArray.Create(model.Properties.XrefSpec);
+            }
+
+            return result;
+        }
+
+        private XRefSpec GetXRefInfo(string uid, string key, Dictionary<string, string> properties)
+        {
+            // TODO: can be defined in schema
+            var spec = new XRefSpec(properties)
+            {
+            };
+
+            if (string.IsNullOrEmpty(spec.Uid))
+            {
+                spec.Uid = uid;
+            }
+
+            if (string.IsNullOrEmpty(spec.Href))
+            {
+                spec.Href = ((RelativePath)key).UrlEncode().ToString();
+            }
+
+            return spec;
         }
 
         #endregion

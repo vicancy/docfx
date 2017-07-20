@@ -230,7 +230,9 @@ Here's the schema to describe these operations:
             }
         },
         "title": {
-            "type": "string"
+            "type": "string",
+            "contentType": "uid",
+            "uidResolver": "name={title};fullName.(*)={title.$1};"
         }
     }
 }

@@ -20,6 +20,13 @@ namespace Microsoft.DocAsCode.Build.Engine
     using Microsoft.DocAsCode.Dfm.MarkdownValidators;
     using Microsoft.DocAsCode.Exceptions;
     using Microsoft.DocAsCode.Plugins;
+    using Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers;
+    using Microsoft.DocAsCode.Build.SchemaDrivenProcessor;
+
+    public interface ITemplateAccessor
+    {
+        TemplateManager TemplateManager { get; set; }
+    }
 
     public class DocumentBuilder : IDisposable
     {
@@ -60,6 +67,7 @@ namespace Microsoft.DocAsCode.Build.Engine
             foreach (var processor in Processors)
             {
                 Logger.LogVerbose($"\t{processor.Name} with build steps ({string.Join(", ", from bs in processor.BuildSteps orderby bs.BuildOrder select bs.Name)})");
+                
             }
 
             _commitFromSHA = commitFromSHA;
@@ -96,6 +104,34 @@ namespace Microsoft.DocAsCode.Build.Engine
 
             var logCodesLogListener = new LogCodesLogListener();
             Logger.RegisterListener(logCodesLogListener);
+
+            // Load schema driven processor from template
+
+            var sdps = new List<SchemaDrivenDocumentProcessor>();
+            using (var resource = parameters[0].TemplateManager.CreateTemplateResource())
+            {
+                foreach (var pair in resource.GetResourceStreams(@"^schemas/.*\.schema\.json"))
+                {
+                    var fileName = Path.GetFileName(pair.Key);
+                    using (var stream = pair.Value)
+                    {
+                        using (var sr = new StreamReader(stream))
+                        {
+                            var schema = DSchema.Load(sr, fileName.Remove(fileName.Length - ".schema.json".Length));
+                            // Load sdp
+                            var sdp = new SchemaDrivenDocumentProcessor(schema, _assemblyList);
+                            Logger.LogVerbose($"\t{sdp.Name} with build steps ({string.Join(", ", from bs in sdp.BuildSteps orderby bs.BuildOrder select bs.Name)})");
+                            sdps.Add(sdp);
+                        }
+                    }
+                }
+            }
+
+            if (sdps.Count > 0)
+            {
+                Logger.LogInfo($"{sdps.Count()} schema driven document processor plug-in(s) loaded.");
+                Processors = Processors.Union(sdps);
+            }
 
             var currentBuildInfo =
                 new BuildInfo
@@ -181,7 +217,11 @@ namespace Microsoft.DocAsCode.Build.Engine
                         {
                             Logger.LogInfo($"Start building for version: {parameter.VersionName}");
                         }
-                        manifests.Add(BuildCore(parameter, markdownServiceProvider, currentBuildInfo, lastBuildInfo));
+
+                        using (new LoggerPhaseScope("BuildCore"))
+                        {
+                            manifests.Add(BuildCore(parameter, markdownServiceProvider, currentBuildInfo, lastBuildInfo));
+                        }
                     }
                 }
 

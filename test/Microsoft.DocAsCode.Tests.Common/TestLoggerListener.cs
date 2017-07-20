@@ -15,9 +15,9 @@ namespace Microsoft.DocAsCode.Tests.Common
 
         private readonly Func<ILogItem, bool> _filter;
 
-        public TestLoggerListener(Func<ILogItem, bool> filter)
+        public TestLoggerListener(Func<ILogItem, bool> filter = null)
         {
-            _filter = filter ?? throw new ArgumentNullException(nameof(filter));
+            _filter = filter;
         }
 
         #region ILoggerListener
@@ -28,7 +28,7 @@ namespace Microsoft.DocAsCode.Tests.Common
             {
                 throw new ArgumentNullException(nameof(item));
             }
-            if (_filter(item))
+            if (_filter == null || _filter(item))
             {
                 Items.Add(item);
             }
