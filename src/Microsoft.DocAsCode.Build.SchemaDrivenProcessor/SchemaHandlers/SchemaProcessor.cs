@@ -35,36 +35,19 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
 
         public object Process(object raw, DSchema schema, ProcessContext context)
         {
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            if (context.FileAndType == null)
+            {
+                throw new ArgumentNullException(nameof(context) + "." + nameof(context.FileAndType));
+            }
+
             context.Interpreters = _interpreters.OrderBy(s => s.Order).ToList();
-            var input = raw as Dictionary<object, object>;
-            if (input == null)
-            {
-                throw new InvalidDataException("Only object is allowed in root");
-            }
-
-            if (schema.Properties != null)
-            {
-                foreach (var keyRaw in input.Keys.ToList())
-                {
-                    var key = keyRaw as string;
-                    if (key == null)
-                    {
-                        throw new NotSupportedException("Only support string as key");
-                    }
-
-                    if (schema.Properties.TryGetValue(key, out var propertySchema))
-                    {
-                        var val = input[keyRaw];
-                        var validator = PropertySchemaInterpreter.CreateInterpreter(val, propertySchema, $"#/{key}");
-                        var obj = validator.Interpret(context);
-                        if (!ReferenceEquals(obj, val))
-                        {
-                            input[keyRaw] = obj;
-                        }
-                    }
-                }
-            }
-            return input;
+            var interpreter = PropertySchemaInterpreter.CreateInterpreter(raw, schema, string.Empty);
+            return interpreter.Interpret(context);
         }
     }
 
@@ -72,16 +55,20 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
     {
         public static PropertySchemaInterpreter CreateInterpreter(object value, PropertySchema schema, string path)
         {
-            var dict = value as Dictionary<object, object>;
-            if (dict != null)
+            var currentPath = path + "/";
+            if (value is Dictionary<object, object> dict)
             {
-                return new DictionaryInterpreter(dict, schema, path + "/");
+                return new DictionaryInterpreter(dict, schema, currentPath);
             }
 
-            var array = value as List<object>;
-            if (array != null)
+            if (value is IDictionary<string, object> idict)
             {
-                return new ArrayInterpreter(array, schema, path + "/");
+                return new IDictionaryInterpreter(idict, schema, currentPath);
+            }
+
+            if (value is List<object> array)
+            {
+                return new ArrayInterpreter(array, schema, currentPath);
             }
             else
             {
@@ -92,6 +79,17 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
         public virtual object Interpret(ProcessContext context)
         {
             return null;
+        }
+
+        public static object Interpret(object value, PropertySchema schema, string path, ProcessContext context)
+        {
+            var val = value;
+            foreach (var i in context.Interpreters.Where(s => s.CanInterpret(schema)))
+            {
+                val = i.Interpret(schema, val, context, path);
+            }
+
+            return val;
         }
     }
 
@@ -127,6 +125,40 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
                         if (!ReferenceEquals(obj, val))
                         {
                             _value[keyRaw] = obj;
+                        }
+                    }
+                }
+            }
+
+            return _value;
+        }
+    }
+    public class IDictionaryInterpreter : PropertySchemaInterpreter
+    {
+        private IDictionary<string, object> _value;
+        private PropertySchema _schema;
+        private string _path;
+        public IDictionaryInterpreter(IDictionary<string, object> value, PropertySchema schema, string path)
+        {
+            _value = value;
+            _schema = schema;
+            _path = path;
+        }
+
+        public override object Interpret(ProcessContext context)
+        {
+            if (_schema.Properties != null)
+            {
+                foreach (var key in _value.Keys.ToList())
+                {
+                    if (_schema.Properties.TryGetValue(key, out var propertySchema))
+                    {
+                        var val = _value[key];
+                        var interpreter = PropertySchemaInterpreter.CreateInterpreter(val, propertySchema, $"{_path}/{key}");
+                        var obj = interpreter.Interpret(context);
+                        if (!ReferenceEquals(obj, val))
+                        {
+                            _value[key] = obj;
                         }
                     }
                 }
@@ -182,13 +214,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
 
         public override object Interpret(ProcessContext context)
         {
-            var val = _value;
-            foreach(var i in context.Interpreters.Where(s => s.CanInterpret(_schema)))
-            {
-                val = i.Interpret(_schema, val, context);
-            }
-
-            return val;
+            return Interpret(_value, _schema, _path, context);
         }
     }
 
@@ -219,7 +245,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
     {
         int Order { get; }
         bool CanInterpret(PropertySchema schema);
-        object Interpret(PropertySchema schema, object value, ProcessContext context);
+        object Interpret(PropertySchema schema, object value, ProcessContext context, string path);
     }
 
     public class MarkdownInterpretor : IInterpreter
@@ -230,9 +256,9 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
             return schema.ContentType == ContentType.Markdown && schema.Type == JSchemaType.String;
         }
 
-        public object Interpret(PropertySchema schema, object value, ProcessContext context)
+        public object Interpret(PropertySchema schema, object value, ProcessContext context, string path)
         {
-            if (schema.ContentType == ContentType.File)
+            if (schema.ContentType == ContentType.Markdown)
             {
                 var val = value as string;
                 if (val == null)
@@ -240,10 +266,21 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
                     throw new InvalidDataException($"{value.GetType()} is not supported for {nameof(MarkdownInterpretor)}.");
                 }
 
-                return context.Host.Markup(val, context.FileAndType);
+                return MarkupCore(val, context);
             }
 
             return value;
+        }
+
+        private static string MarkupCore(string content, ProcessContext context)
+        {
+            var host = context.Host;
+            var mr = host.Markup(content, context.FileAndType);
+            context.LinkToUids.UnionWith(mr.LinkToUids);
+            context.LinkToFiles.UnionWith(mr.LinkToFiles);
+            context.FileLinkSources = context.FileLinkSources.Merge(mr.FileLinkSources.Select(s => new KeyValuePair<string, IEnumerable<LinkSourceInfo>>(s.Key, s.Value)));
+            context.UidLinkSources = context.UidLinkSources.Merge(mr.UidLinkSources.Select(s => new KeyValuePair<string, IEnumerable<LinkSourceInfo>>(s.Key, s.Value)));
+            return mr.Html;
         }
     }
 
@@ -255,7 +292,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
             return schema.ContentType == ContentType.Uid && schema.Type == JSchemaType.String;
         }
 
-        public object Interpret(PropertySchema schema, object value, ProcessContext context)
+        public object Interpret(PropertySchema schema, object value, ProcessContext context, string path)
         {
             if (schema.ContentType == ContentType.Uid)
             {
@@ -265,7 +302,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
                     throw new InvalidDataException($"{value.GetType()} is not supported for {nameof(UidInterpretor)}.");
                 }
 
-                context.Uids.Add(new UidDefinition(val, context.LocalPathFromRoot));
+                context.Uids.Add(new UidDefinition(val, context.LocalPathFromRoot, path: path));
             }
 
             return value;
@@ -280,17 +317,17 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
             return schema.ContentType == ContentType.File && schema.Type == JSchemaType.String;
         }
 
-        public object Interpret(PropertySchema schema, object value, ProcessContext context)
+        public object Interpret(PropertySchema schema, object value, ProcessContext context, string path)
         {
             if (schema.ContentType == ContentType.File)
             {
-                var path = value as string;
-                if (path == null)
+                var val = value as string;
+                if (val == null)
                 {
                     throw new InvalidDataException($"{value.GetType()} is not supported for {nameof(FileInterpretor)}.");
                 }
 
-                var relPath = RelativePath.TryParse(path);
+                var relPath = RelativePath.TryParse(val);
                 if (relPath == null)
                 {
                     throw new DocumentException($"Only Relative path is supported. Value: \"{relPath}\" is not supported.");
@@ -314,20 +351,20 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
             return schema.Type == JSchemaType.String && schema.Reference != ReferenceType.None;
         }
 
-        public object Interpret(PropertySchema schema, object value, ProcessContext context)
+        public object Interpret(PropertySchema schema, object value, ProcessContext context, string path)
         {
             if (schema.Reference == ReferenceType.File)
             {
-                var path = value as string;
-                if (path == null)
+                var val = value as string;
+                if (val == null)
                 {
                     throw new InvalidDataException($"{value.GetType()} is not supported for {nameof(FileIncludeInterpretor)}.");
                 }
-                var relPath = RelativePath.TryParse(path);
+                var relPath = RelativePath.TryParse(val);
                 if (relPath != null)
                 {
                     var currentFile = (RelativePath)context.FileAndType.File;
-                    path = currentFile + relPath;
+                    val = currentFile + relPath;
                 }
                 return EnvironmentContext.FileAbstractLayer.ReadAllText(path);
             }

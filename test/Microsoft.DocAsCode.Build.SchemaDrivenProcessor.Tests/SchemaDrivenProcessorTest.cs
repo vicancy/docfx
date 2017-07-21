@@ -35,7 +35,6 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
         private TemplateManager _templateManager;
 
         private const string RawModelFileExtension = ".raw.json";
-        private const string MrefDirectory = "mref";
 
         public SchemaDrivenProcessorTest()
         {
@@ -43,7 +42,6 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
             _inputFolder = GetRandomFolder();
             _templateFolder = GetRandomFolder();
             _defaultFiles = new FileCollection(Directory.GetCurrentDirectory());
-            _defaultFiles.Add(DocumentType.Article, new[] { "TestData/mref/CatLibrary.Cat-2.yml" }, "TestData/");
             _applyTemplateSettings = new ApplyTemplateSettings(_inputFolder, _outputFolder)
             {
                 RawModelExportSettings = { Export = true },
@@ -61,7 +59,8 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
 
             var spec = File.ReadAllText(SpecPath);
             var input = InputMatcher.Match(spec).Groups[2].Value;
-            var inputFile = CreateFile("landingPage1.yml", input, _inputFolder);
+            var inputFileName = "landingPage1.yml";
+            var inputFile = CreateFile(inputFileName, input, _inputFolder);
             File.WriteAllText(_inputFolder + "/landingPage1.yml", input);
 
             var schema = SchemaMatcher.Match(spec).Groups[1].Value;
@@ -70,7 +69,16 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
             files.Add(DocumentType.Article, new[] { inputFile }, _inputFolder);
             BuildDocument(files);
 
-            Assert.Equal(0, listener.Items.Count);
+            Assert.Equal(5, listener.Items.Count);
+            Assert.Equal("There is no template processing document type(s): LandingPage", listener.Items.FirstOrDefault(s => s.Message.StartsWith("There")).Message);
+            Assert.Equal(4, listener.Items.Count(s => s.Message.StartsWith("Invalid file link")));
+
+            var rawModelFilePath = GetRawModelFilePath(inputFileName);
+            Assert.True(File.Exists(rawModelFilePath));
+            var rawModel = JsonUtility.Deserialize<JObject>(rawModelFilePath);
+
+            Assert.Equal($"<p sourcefile=\"{_inputFolder}/landingPage1.yml\" sourcestartlinenumber=\"1\" sourceendlinenumber=\"1\">Create an application using <a href=\"app-service-web-tutorial-dotnet-sqldatabase.md\" data-raw-source=\"[.NET with Azure SQL DB](app-service-web-tutorial-dotnet-sqldatabase.md)\" sourcefile=\"{_inputFolder}/landingPage1.yml\" sourcestartlinenumber=\"1\" sourceendlinenumber=\"1\">.NET with Azure SQL DB</a> or <a href=\"app-service-web-tutorial-nodejs-mongodb-app.md\" data-raw-source=\"[Node.js with MongoDB](app-service-web-tutorial-nodejs-mongodb-app.md)\" sourcefile=\"{_inputFolder}/landingPage1.yml\" sourcestartlinenumber=\"1\" sourceendlinenumber=\"1\">Node.js with MongoDB</a></p>\n"
+                , rawModel["sections"][1]["children"][0]["content"].ToString());
         }
 
         private void BuildDocument(FileCollection files)
@@ -95,12 +103,13 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
 
         private static IEnumerable<System.Reflection.Assembly> LoadAssemblies()
         {
+            yield return typeof(SchemaDrivenDocumentProcessor).Assembly;
             yield return typeof(SchemaDrivenProcessorTest).Assembly;
         }
 
         private string GetRawModelFilePath(string fileName)
         {
-            return Path.Combine(_outputFolder, MrefDirectory, Path.ChangeExtension(fileName, RawModelFileExtension));
+            return Path.Combine(_outputFolder, Path.ChangeExtension(fileName, RawModelFileExtension));
         }
 
         private string GetOutputFilePath(string fileName)

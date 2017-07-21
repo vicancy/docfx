@@ -16,13 +16,17 @@ namespace Microsoft.DocAsCode.Plugins
         [JsonProperty("column")]
         public int? Column { get; }
 
+        [JsonProperty("path")]
+        public string Path { get; }
+
         [JsonConstructor]
-        public UidDefinition(string name, string file, int? line = null, int? column = null)
+        public UidDefinition(string name, string file, int? line = null, int? column = null, string path = null)
         {
             Name = name;
             File = file;
             Line = line;
             Column = column;
+            Path = path;
         }
     }
 }

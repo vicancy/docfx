@@ -21,6 +21,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
     using System.Composition.Hosting;
     using Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers;
     using System.Linq;
+    using System.Dynamic;
 
     // [Export(typeof(IDocumentProcessor))]
     public class SchemaDrivenDocumentProcessor
@@ -45,7 +46,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
             {
                 throw new ArgumentException("Title for schema must not be empty");
             }
-            _schemaName = _schema.Title;
+            _schemaName = schema.Title;
             _schema = schema;
             LoadBuildSteps(assemblies);
             _serializerPool = new ResourcePoolManager<JsonSerializer>(GetSerializer, 0x10);
@@ -94,7 +95,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
                         ".yaml".Equals(Path.GetExtension(file.File), StringComparison.OrdinalIgnoreCase))
                     {
                         var mime = YamlMime.ReadMime(file.File);
-                        if (string.Equals(mime, _schemaName))
+                        if (string.Equals(mime, YamlMime.YamlMimePrefix + _schemaName))
                         {
                             return ProcessingPriority.Normal;
                         }
@@ -158,7 +159,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
                 FileLinkSources = model.FileLinkSources,
                 UidLinkSources = model.UidLinkSources,
             };
-            if (model.Properties.XrefSpec != null)
+            if (((IDictionary<string, object>)model.Properties).ContainsKey("XrefSpec"))
             {
                 result.XRefSpecs = ImmutableArray.Create(model.Properties.XrefSpec);
             }

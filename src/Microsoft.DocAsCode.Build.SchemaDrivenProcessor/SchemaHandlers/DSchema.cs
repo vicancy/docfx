@@ -27,11 +27,11 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
         private const string SupportedMetaSchemaUrl = "https://github.com/dotnet/docfx/schemas/v1.0/schema.json";
         public static void Validate(DSchema schema)
         {
-            using (var stream = typeof(SchemaValidator).Assembly.GetManifestResourceStream("Microsoft.DocAsCode.Build.SchemaDrivenProcessor.schemas.v1.0.schema.json"))
+            using (var stream = typeof(SchemaValidator).Assembly.GetManifestResourceStream("Microsoft.DocAsCode.Build.SchemaDrivenProcessor.schemas.v1._0.schema.json"))
             using (var sr = new StreamReader(stream))
             {
                 var metaSchema = JSchema.Parse(sr.ReadToEnd());
-                var o = JObject.FromObject(schema);
+                var o = schema.ToJObject();
                 var isValid = o.IsValid(metaSchema, out IList<string> errors);
                 if (!isValid)
                 {
@@ -41,7 +41,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
         }
     }
 
-    public class DSchema
+    public class DSchema : PropertySchema
     {
         private const string SchemaFileEnding = ".schema.json";
         public static readonly ThreadLocal<JsonSerializer> DefaultSerializer = new ThreadLocal<JsonSerializer>(
@@ -65,14 +65,12 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
         [JsonRequired]
         public string Version { get; set; }
 
-        [JsonRequired]
-        public string Type { get; set; }
-
         public string Id { get; set; }
-        public string Title { get; set; }
-        public string Description { get; set; }
 
-        public Dictionary<string, PropertySchema> Properties { get; set; }
+        public JObject ToJObject()
+        {
+            return JObject.FromObject(this, DefaultSerializer.Value);
+        }
 
         public static DSchema Load(TextReader reader, string title)
         {
@@ -99,7 +97,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.SchemaHandlers
                     schema.Title = title;
                 }
 
-                if (schema.Type != "object")
+                if (schema.Type != JSchemaType.Object)
                 {
                     throw new InvalidSchemaException("Type for the root schema object must be object");
                 }

@@ -28,7 +28,12 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
         protected override void BuildArticle(IHostService host, FileModel model)
         {
             var content = model.Content;
-            var context = new ProcessContext();
+            var context = new ProcessContext
+            {
+                FileAndType = model.FileAndType,
+                LocalPathFromRoot = model.LocalPathFromRoot,
+                Host = host,
+            };
             DSchema schema = model.Properties.Schema;
             content = _schemaProcessor.Process(content, schema, context);
             model.LinkToUids = model.LinkToUids.Union(context.LinkToUids);
