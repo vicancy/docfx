@@ -69,8 +69,9 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
             files.Add(DocumentType.Article, new[] { inputFile }, _inputFolder);
             BuildDocument(files);
 
-            Assert.Equal(3, listener.Items.Count);
+            Assert.Equal(7, listener.Items.Count);
             Assert.Equal("There is no template processing document type(s): LandingPage", listener.Items.FirstOrDefault(s => s.Message.StartsWith("There")).Message);
+            Assert.Equal(4, listener.Items.Count(s => s.Message.StartsWith("Invalid file link")));
 
             var rawModelFilePath = GetRawModelFilePath(inputFileName);
             Assert.True(File.Exists(rawModelFilePath));
@@ -79,6 +80,8 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor.Tests
             Assert.Equal("world", rawModel["metadata"]["hello"].ToString());
             Assert.Equal("/metadata", rawModel["metadata"]["path"].ToString());
             Assert.Equal("/sections/0/children/1", rawModel["sections"][0]["children"][1]["path"].ToString());
+            Assert.Equal($"<p sourcefile=\"{_inputFolder}/landingPage1.yml\" sourcestartlinenumber=\"1\" sourceendlinenumber=\"1\">Create an application using <a href=\"app-service-web-tutorial-dotnet-sqldatabase.md\" data-raw-source=\"[.NET with Azure SQL DB](app-service-web-tutorial-dotnet-sqldatabase.md)\" sourcefile=\"{_inputFolder}/landingPage1.yml\" sourcestartlinenumber=\"1\" sourceendlinenumber=\"1\">.NET with Azure SQL DB</a> or <a href=\"app-service-web-tutorial-nodejs-mongodb-app.md\" data-raw-source=\"[Node.js with MongoDB](app-service-web-tutorial-nodejs-mongodb-app.md)\" sourcefile=\"{_inputFolder}/landingPage1.yml\" sourcestartlinenumber=\"1\" sourceendlinenumber=\"1\">Node.js with MongoDB</a></p>\n"
+                            , rawModel["sections"][1]["children"][0]["content"].ToString());
         }
 
         private void BuildDocument(FileCollection files)

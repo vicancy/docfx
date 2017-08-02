@@ -15,7 +15,11 @@ namespace Microsoft.DocAsCode.Build.SchemaDrivenProcessor
     public class BuildSchemaBasedDocument : BuildReferenceDocumentBase, ISupportIncrementalBuildStep
     {
         private const string DocumentTypeKey = "documentType";
-        private readonly SchemaProcessor _schemaProcessor = new SchemaProcessor();
+        private readonly SchemaProcessor _schemaProcessor = new SchemaProcessor(
+            new FileIncludeInterpreter(),
+            new MarkdownInterpreter(),
+            new UidInterpretor(),
+            new FileInterpretor());
 
         public override string Name => nameof(BuildSchemaBasedDocument);
 
