@@ -15,7 +15,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDriven.Processors
     {
         public bool CanInterpret(BaseSchema schema)
         {
-            return schema.ContentType == ContentType.Markdown;
+            return schema != null && schema.ContentType == ContentType.Markdown;
         }
 
         public object Interpret(BaseSchema schema, object value, IProcessContext context, string path)

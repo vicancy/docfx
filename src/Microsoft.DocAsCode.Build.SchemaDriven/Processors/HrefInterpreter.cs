@@ -24,7 +24,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDriven.Processors
 
         public bool CanInterpret(BaseSchema schema)
         {
-            return schema.ContentType == ContentType.Href;
+            return schema != null && schema.ContentType == ContentType.Href;
         }
 
         public object Interpret(BaseSchema schema, object value, IProcessContext context, string path)

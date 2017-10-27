@@ -2,6 +2,9 @@
   <PropertyGroup>
     <TargetFramework>net46</TargetFramework>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
   <Import Project="../Shared/base.props" />
   <ItemGroup>
     <EmbeddedResource Include="..\..\schemas\v1.0\schema.json" Link="schemas\v1.0\schema.json" />

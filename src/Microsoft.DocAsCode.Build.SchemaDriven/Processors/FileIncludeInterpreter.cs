@@ -14,7 +14,7 @@ namespace Microsoft.DocAsCode.Build.SchemaDriven.Processors
     {
         public bool CanInterpret(BaseSchema schema)
         {
-            return schema.Reference != ReferenceType.None;
+            return schema != null && schema.Reference != ReferenceType.None;
         }
 
         public object Interpret(BaseSchema schema, object value, IProcessContext context, string path)

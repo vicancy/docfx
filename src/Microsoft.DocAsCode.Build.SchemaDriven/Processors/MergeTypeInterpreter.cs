@@ -8,13 +8,11 @@ namespace Microsoft.DocAsCode.Build.SchemaDriven.Processors
         public int Order => 1;
         public bool CanInterpret(BaseSchema schema)
         {
-            // TODO implement
-            return false;
+            return schema == null || schema.MergeType != MergeType.Ignore;
         }
 
         public object Interpret(BaseSchema schema, object value, IProcessContext context, string path)
         {
-            // TODO implement
             return value;
         }
 

@@ -22,6 +22,11 @@ namespace Microsoft.DocAsCode.Build.SchemaDriven.Processors
         /// <returns></returns>
         public bool CanInterpret(BaseSchema schema)
         {
+            if (schema == null)
+            {
+                return false;
+            }
+
             if (schema.XrefProperties != null)
             {
                 return true;

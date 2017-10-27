@@ -6,15 +6,13 @@ namespace Microsoft.DocAsCode.Build.SchemaDriven.Processors
     using System;
     using System.Collections.Generic;
 
-    using Newtonsoft.Json.Schema;
-
     using Microsoft.DocAsCode.Plugins;
 
     public class XrefInterpreter : IInterpreter
     {
         public bool CanInterpret(BaseSchema schema)
         {
-            return schema.ContentType == ContentType.Xref;
+            return schema != null && schema.ContentType == ContentType.Xref;
         }
 
         public object Interpret(BaseSchema schema, object value, IProcessContext context, string path)
