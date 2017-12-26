@@ -12,7 +12,7 @@
 
     using Xunit;
 
-    public class TaskXTest
+    public class TaskYTest
     {
         [Fact]
         public async Task TestY()
