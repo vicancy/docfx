@@ -28,7 +28,7 @@ namespace Microsoft.DocAsCode.Glob
             if (!Directory.Exists(cwd)) yield break;
             foreach (var file in GetFilesFromSubfolder(cwd, cwd, globs, excludeGlobs))
             {
-                yield return NormalizeToFullPath(file);
+                yield return file;
             }
         }
 
@@ -39,7 +39,7 @@ namespace Microsoft.DocAsCode.Glob
                 var relativePath = GetRelativeFilePath(cwd, file);
                 if (IsFileMatch(relativePath, globs, excludeGlobs))
                 {
-                    yield return file;
+                    yield return relativePath;
                 }
             }
 

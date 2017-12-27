@@ -107,10 +107,15 @@ namespace Microsoft.DocAsCode
             {
                 step = new TocFileBuild(file, config, processor);
             }
-            else
+            else if (processor is ConceptualDocumentProcessor)
             {
                 step = new ConceptualFileBuild(file, config, processor);
             }
+            else
+            {
+                step = new MrefFileBuild(file, config, processor);
+            }
+
             context.FileStepMapping.TryAdd(file.Key, step);
             return step;
         }

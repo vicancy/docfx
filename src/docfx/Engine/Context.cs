@@ -32,7 +32,7 @@ namespace Microsoft.DocAsCode
          /// <summary>
         /// UID-Path mapping, path is always start with ~
         /// </summary>
-        public Dictionary<string, List<string>> PossibleUidMapping { get; } = new Dictionary<string, List<string>>();
+        public Dictionary<string, HashSet<string>> PossibleUidMapping { get; } = new Dictionary<string, HashSet<string>>();
 
         /// <summary>
         /// File Source to Target mapping, path is always start with ~
@@ -46,7 +46,7 @@ namespace Microsoft.DocAsCode
         /// </summary>
         public ConcurrentBag<FileAndType> UnhandledItems { get; } = new ConcurrentBag<FileAndType>();
 
-        public ConcurrentDictionary<string, XRefSpec[]> XrefSpecMapping { get; } = new ConcurrentDictionary<string, ImmutableArray<XRefSpec>>();
+        public ConcurrentDictionary<string, XRefSpec> XrefSpecMapping { get; } = new ConcurrentDictionary<string, XRefSpec>();
 
         /// <summary>
         /// Record file to possible toc mapping

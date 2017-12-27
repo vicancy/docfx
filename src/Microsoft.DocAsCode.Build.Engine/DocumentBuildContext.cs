@@ -43,19 +43,19 @@ namespace Microsoft.DocAsCode.Build.Engine
             VersionName = parameters.VersionName;
             ApplyTemplateSettings = parameters.ApplyTemplateSettings;
             HrefGenerator = parameters.ApplyTemplateSettings?.HrefGenerator;
-            AllSourceFiles = GetAllSourceFiles(parameters.Files.EnumerateFiles());
+            // AllSourceFiles = GetAllSourceFiles(parameters.Files.EnumerateFiles());
             _xrefMapUrls = parameters.XRefMaps;
             _xrefServiceUrls = parameters.XRefServiceUrls;
             GroupInfo = parameters.GroupInfo;
             MaxParallelism = parameters.MaxParallelism;
             MaxHttpParallelism = parameters.MaxHttpParallelism;
 
-            if (parameters.XRefMaps.Length > 0)
-            {
-                _reader = new XRefCollection(
-                    from u in parameters.XRefMaps
-                    select new Uri(u, UriKind.RelativeOrAbsolute)).GetReaderAsync(parameters.Files.DefaultBaseDir);
-            }
+            //if (parameters.XRefMaps.Length > 0)
+            //{
+            //    _reader = new XRefCollection(
+            //        from u in parameters.XRefMaps
+            //        select new Uri(u, UriKind.RelativeOrAbsolute)).GetReaderAsync(parameters.Files.DefaultBaseDir);
+            //}
             RootTocPath = parameters.RootTocPath;
 
             if (!string.IsNullOrEmpty(parameters.VersionDir) && Path.IsPathRooted(parameters.VersionDir))
@@ -143,7 +143,7 @@ namespace Microsoft.DocAsCode.Build.Engine
 
         public ConcurrentDictionary<string, string> FileMap { get; } = new ConcurrentDictionary<string, string>(FilePathComparer.OSPlatformSensitiveStringComparer);
 
-        public ConcurrentDictionary<string, XRefSpec> XRefSpecMap { get; } = new ConcurrentDictionary<string, XRefSpec>();
+        public ConcurrentDictionary<string, XRefSpec> XRefSpecMap { get; set; } = new ConcurrentDictionary<string, XRefSpec>();
 
         public ConcurrentDictionary<string, HashSet<string>> TocMap { get; } = new ConcurrentDictionary<string, HashSet<string>>(FilePathComparer.OSPlatformSensitiveStringComparer);
 

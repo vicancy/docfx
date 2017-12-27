@@ -14,6 +14,7 @@ namespace Microsoft.DocAsCode.Build.Engine
 
     using Microsoft.DocAsCode.Common;
     using Microsoft.DocAsCode.Plugins;
+    using Newtonsoft.Json.Linq;
 
     public class TemplateModelTransformer
     {
@@ -48,6 +49,10 @@ namespace Microsoft.DocAsCode.Build.Engine
             }
 
             var model = ConvertObjectToDictionary(item.Model.Content);
+            
+            // Add ops required properties before process
+            model[""] = "";
+
             AppendGlobalMetadata(model);
 
             if (_settings.Options.HasFlag(ApplyTemplateOptions.ExportRawModel))
@@ -85,7 +90,7 @@ namespace Microsoft.DocAsCode.Build.Engine
             }
 
             var unresolvedXRefs = new List<XRefDetails>();
-
+            string html;
             // Must convert to JObject first as we leverage JsonProperty as the property name for the model
             foreach (var template in templateBundle.Templates)
             {
@@ -166,7 +171,11 @@ namespace Microsoft.DocAsCode.Build.Engine
                         }
 
                         List<XRefDetails> invalidXRefs;
-                        TransformDocument(result ?? string.Empty, extension, _context, outputFile, manifestItem, out invalidXRefs);
+                        var transformed = TransformDocument(result ?? string.Empty, extension, _context, outputFile, manifestItem, out invalidXRefs);
+                        if (extension == ".html")
+                        {
+                            html = transformed;
+                        }
                         unresolvedXRefs.AddRange(invalidXRefs);
                         Logger.LogDiagnostic($"Transformed model \"{item.LocalPathFromRoot}\" to \"{outputFile}\".");
                     }
@@ -293,21 +302,18 @@ namespace Microsoft.DocAsCode.Build.Engine
             return StringExtension.ToDisplayPath(modelPath);
         }
 
-        private void TransformDocument(string result, string extension, IDocumentBuildContext context, string destFilePath, ManifestItem manifestItem, out List<XRefDetails> unresolvedXRefs)
+        private string TransformDocument(string result, string extension, IDocumentBuildContext context, string destFilePath, ManifestItem manifestItem, out List<XRefDetails> unresolvedXRefs)
         {
             Task<byte[]> hashTask;
             unresolvedXRefs = new List<XRefDetails>();
+            if (extension.Equals(".html", StringComparison.OrdinalIgnoreCase))
+            {
+                result = TransformHtml(context, result, manifestItem.SourceRelativePath, destFilePath, out unresolvedXRefs);
+            }
             using (var stream = EnvironmentContext.FileAbstractLayer.Create(destFilePath).WithMd5Hash(out hashTask))
             using (var sw = new StreamWriter(stream))
             {
-                if (extension.Equals(".html", StringComparison.OrdinalIgnoreCase))
-                {
-                    TransformHtml(context, result, manifestItem.SourceRelativePath, destFilePath, sw, out unresolvedXRefs);
-                }
-                else
-                {
-                    sw.Write(result);
-                }
+                sw.Write(result);
             }
             var ofi = new OutputFileInfo
             {
@@ -316,9 +322,10 @@ namespace Microsoft.DocAsCode.Build.Engine
                 Hash = Convert.ToBase64String(hashTask.Result)
             };
             manifestItem.OutputFiles.Add(extension, ofi);
+            return result;
         }
 
-        private void TransformHtml(IDocumentBuildContext context, string html, string sourceFilePath, string destFilePath, StreamWriter outputWriter, out List<XRefDetails> unresolvedXRefs)
+        private string TransformHtml(IDocumentBuildContext context, string html, string sourceFilePath, string destFilePath, out List<XRefDetails> unresolvedXRefs)
         {
             // Update href and xref
             HtmlDocument document = new HtmlDocument();
@@ -326,7 +333,7 @@ namespace Microsoft.DocAsCode.Build.Engine
 
             TransformHtmlCore(context, sourceFilePath, destFilePath, document, out unresolvedXRefs);
 
-            document.Save(outputWriter);
+            return document.ToString();
         }
 
         private void TransformHtmlCore(IDocumentBuildContext context, string sourceFilePath, string destFilePath, HtmlDocument html, out List<XRefDetails> unresolvedXRefs)

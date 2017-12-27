@@ -170,12 +170,12 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
             var vm = (PageViewModel)model.Content;
 
             var result = base.Save(model);
-            result.XRefSpecs = (from item in vm.Items
-                                from xref in GetXRefInfo(item, model.Key, vm.References)
-                                group xref by xref.Uid
-                                into g
-                                select g.First()).ToImmutableArray();
-            result.ExternalXRefSpecs = GetXRefFromReference(vm).ToImmutableArray();
+            //result.XRefSpecs = (from item in vm.Items
+            //                    from xref in GetXRefInfo(item, model.Key, vm.References)
+            //                    group xref by xref.Uid
+            //                    into g
+            //                    select g.First()).ToImmutableArray();
+            //result.ExternalXRefSpecs = GetXRefFromReference(vm).ToImmutableArray();
             UpdateModelContent(model);
 
             return result;

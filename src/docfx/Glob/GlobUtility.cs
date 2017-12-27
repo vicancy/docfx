@@ -10,10 +10,24 @@ namespace Microsoft.DocAsCode
 
     using Microsoft.DocAsCode.Common;
     using Microsoft.DocAsCode.Glob;
-
+    using Microsoft.DocAsCode.Plugins;
 
     internal class GlobUtility
     {
+        public static IEnumerable<FileAndType> GetFilesFromFileMapping(string baseDirectory, DocumentType type, FileMapping fileMapping)
+        {
+            foreach (var item in fileMapping.Items)
+            {
+                item.SourceFolder = item.SourceFolder ?? string.Empty;
+                var src = Path.Combine(baseDirectory, item.SourceFolder);
+                var options = GetMatchOptionsFromItem(item);
+                foreach (var f in FileGlob.GetFiles(src, item.Files, item.Exclude, options))
+                {
+                    yield return new FileAndType(baseDirectory, Path.Combine(item.SourceFolder, f), type, null, item.DestinationFolder);
+                }
+            }
+        }
+
         public static FileMapping ExpandFileMapping(string baseDirectory, FileMapping fileMapping)
         {
             if (fileMapping == null)

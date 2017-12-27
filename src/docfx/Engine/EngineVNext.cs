@@ -32,7 +32,7 @@ namespace Microsoft.DocAsCode
             _config = config;
         }
 
-        public async Task Build(FileCollection globalScopeFiles, FileCollection inScopeFiles, string outputFolder)
+        public async Task Build(IEnumerable<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder)
         {
             Logger.LogInfo("start");
             var context = new Context();
@@ -46,13 +46,13 @@ namespace Microsoft.DocAsCode
 
             using (new LoggerPhaseScope("Build", LogLevel.Info))
             {
-                await Task.WhenAll(inScopeFiles.EnumerateFiles().ForEachInParallelAsync(s =>
-                {
-                    var step = Utility.CreateOrGetOneTask(s, context, _config);
+                await Task.WhenAll((inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values).ForEachInParallelAsync(s =>
+                 {
+                     var step = Utility.CreateOrGetOneTask(s, context, _config);
 
-                    return step.Build(context);
+                     return step.Build(context);
 
-                }, 64));
+                 }, 64));
                 Logger.LogInfo($"{context.FileStepMapping.Count} files task mapping executed.");
             }
 
@@ -66,9 +66,9 @@ namespace Microsoft.DocAsCode
             // _config.TemplateProcessor.ProcessDependencies(new HashSet<string> { "Conceptual" }, _config.ApplyTemplateSettings);
         }
 
-        private async Task QuickScan(FileCollection files, Context context)
+        private async Task QuickScan(IEnumerable<FileAndType> files, Context context)
         {
-            foreach(var f in files.EnumerateFiles())
+            foreach(var f in files)
             {
                 var uids = OneFileQuickScan(f);
                 if (f.IsToc)
@@ -84,7 +84,7 @@ namespace Microsoft.DocAsCode
                     }
                     else
                     {
-                        context.PossibleUidMapping[uid] = new List<string> { f.Key };
+                        context.PossibleUidMapping[uid] = new HashSet<string> { f.Key };
                     }
                 }
             }
@@ -157,7 +157,7 @@ namespace Microsoft.DocAsCode
             context.FileMapping.TryAdd(file.Key, file);
         }
 
-        private static readonly Regex UidMatcher = new Regex(@"^\s*-?\s+uid:\s*(.*)$", RegexOptions.Compiled);
+        private static readonly Regex UidMatcher = new Regex(@"^\s*-?\s+(uid|overload):\s*(.*)$", RegexOptions.Compiled);
 
         private IEnumerable<string> QuickScanUids(string path)
         {
@@ -169,7 +169,7 @@ namespace Microsoft.DocAsCode
                 }
                 else if (UidMatcher.IsMatch(line))
                 {
-                    yield return UidMatcher.Match(line).Groups[1].Value;
+                    yield return UidMatcher.Match(line).Groups[2].Value;
                 }
                 
             }

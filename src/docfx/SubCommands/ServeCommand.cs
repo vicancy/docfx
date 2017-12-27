@@ -13,6 +13,8 @@ namespace Microsoft.DocAsCode.SubCommands
     using Owin.FileSystems;
     using Owin.Hosting;
     using global::Owin;
+    using Microsoft.Docs.Build;
+    using System.Threading.Tasks;
 
     internal sealed class ServeCommand : ISubCommand
     {
@@ -60,8 +62,9 @@ namespace Microsoft.DocAsCode.SubCommands
 
             try
             {
-                WebApp.Start(url, builder => builder.UseFileServer(fileServerOptions));
-
+                // WebApp.Start(url, builder => builder.UseFileServer(fileServerOptions));
+                var task = Task.Run(() => Watch.Run(folder));
+                task.Wait();
                 Console.WriteLine($"Serving \"{folder}\" on {url}");
                 Console.ReadLine();
             }

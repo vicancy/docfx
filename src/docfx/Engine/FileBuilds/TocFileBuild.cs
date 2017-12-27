@@ -59,7 +59,6 @@ namespace Microsoft.DocAsCode
                            GoThrough(Content, _file, dep, context);
                            // TODO: include
                            // TODO: xref dependencies
-
                            BuildPhaseUtility.RunBuildSteps(
                                _processor.BuildSteps,
                                buildStep =>
@@ -70,12 +69,24 @@ namespace Microsoft.DocAsCode
                                        buildStep.Build(_fm, _config.HostService);
                                    }
                                });
+
                        }
                    });
         }
         public Task ExportXrefMap(Context context)
         {
             return Task.CompletedTask;
+        }
+
+        private IEnumerable<string> GetUids(string uid, Context context)
+        {
+            if (context.PossibleUidMapping.TryGetValue(uid, out var value))
+            {
+                foreach (var v in value)
+                {
+                    yield return v;
+                }
+            }
         }
 
         public Task Build(Context context)
@@ -89,7 +100,11 @@ namespace Microsoft.DocAsCode
                        var linkToFiles = _fm.LinkToFiles;
                        var linkToUids = _fm.LinkToUids;
                        // wait for the dependent uids to complete
-                       await Task.WhenAll(linkToUids.SelectMany(s => context.PossibleUidMapping[s]).Select(s => context.FileStepMapping[s].Load(context)));
+                       await Task.WhenAll(
+                           linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
+                           );
+                       // update href
+                       ResolveUid(Content, context);
                        var result = _processor.Save(_fm);
                        if (result != null)
                        {
@@ -100,6 +115,41 @@ namespace Microsoft.DocAsCode
                    });
         }
 
+        private void ResolveUid(TocItemViewModel item, Context context)
+        {
+            if (item.TopicUid != null)
+            {
+                if (!context.XrefSpecMapping.TryGetValue(item.TopicUid, out var xref))
+                {
+                    return;
+                }
+                if (xref != null)
+                {
+                    item.Href = item.TopicHref = xref.Href;
+                    if (string.IsNullOrEmpty(item.Name))
+                    {
+                        item.Name = xref.Name;
+                    }
+
+                    if (string.IsNullOrEmpty(item.NameForCSharp) && xref.TryGetValue("name.csharp", out string nameForCSharp))
+                    {
+                        item.NameForCSharp = nameForCSharp;
+                    }
+                    if (string.IsNullOrEmpty(item.NameForVB) && xref.TryGetValue("name.vb", out string nameForVB))
+                    {
+                        item.NameForVB = nameForVB;
+                    }
+                }
+            }
+
+            if (item.Items != null)
+            {
+                foreach (var i in item.Items)
+                {
+                    ResolveUid(i, context);
+                }
+            }
+        }
         private void GoThrough(TocItemViewModel item, FileAndType file, Dependencies dep, Context context)
         {
             if (item == null)

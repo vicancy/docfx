@@ -6,6 +6,8 @@ using Microsoft.DocAsCode.Build.Engine;
 using Microsoft.DocAsCode.Build.ManagedReference;
 using Microsoft.DocAsCode.Build.TableOfContents;
 using Microsoft.DocAsCode.Common;
+using Microsoft.DocAsCode.DataContracts.Common;
+using Microsoft.DocAsCode.DataContracts.ManagedReference;
 using Microsoft.DocAsCode.Exceptions;
 using Microsoft.DocAsCode.Plugins;
 using System;
@@ -21,29 +23,15 @@ using System.Threading.Tasks;
 
 namespace Microsoft.DocAsCode
 {
-    internal class TaskRegister
-    {
-        private Dictionary<string, Task> _tasks = new Dictionary<string, Task>();
-        public Task RegisterAndCall(string name, Func<Task> task)
-        {
-            if (_tasks.TryGetValue(name, out var saved))
-            {
-                return saved;
-            }
-            saved = _tasks[name] = task();
-            return saved;
-        }
-    }
-
-    internal class ConceptualFileBuild : IBuildStep
+    internal class MrefFileBuild : IBuildStep
     {
         private readonly Config _config;
         private readonly FileAndType _file;
         IDocumentProcessor _processor;
         private FileModel _fm;
         private TaskRegister _tr = new TaskRegister();
-
-        public ConceptualFileBuild(FileAndType file, Config config, IDocumentProcessor processor)
+        private PageViewModel _model;
+        public MrefFileBuild(FileAndType file, Config config, IDocumentProcessor processor)
         {
             _config = config;
             _file = file;
@@ -67,16 +55,121 @@ namespace Microsoft.DocAsCode
 
                         var mta = Utility.ApplyFileMetadata(_file.File, _config.Metadata, _config.FileMetadata);
                         _fm = _processor.Load(_file, mta);
-                        Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
-                        BuildPhaseUtility.RunBuildSteps(
-                            _processor.BuildSteps,
-                            buildStep =>
-                            {
-                                buildStep.Build(_fm, _config.HostService);
-                            });
+                        _model = (PageViewModel)_fm.Content;
                     }
                 }
                 );
+        }
+
+
+        private static IEnumerable<XRefSpec> GetXRefInfo(ItemViewModel item, string key,
+            List<ReferenceViewModel> references)
+        {
+            var result = new XRefSpec
+            {
+                Uid = item.Uid,
+                Name = item.Name,
+                Href = ((RelativePath)key).UrlEncode().ToString(),
+                CommentId = item.CommentId,
+            };
+            if (item.Names.Count > 0)
+            {
+                foreach (var pair in item.Names)
+                {
+                    result["name." + pair.Key] = pair.Value;
+                }
+            }
+            if (!string.IsNullOrEmpty(item.FullName))
+            {
+                result["fullName"] = item.FullName;
+            }
+            if (item.FullNames.Count > 0)
+            {
+                foreach (var pair in item.FullNames)
+                {
+                    result["fullName." + pair.Key] = pair.Value;
+                }
+            }
+            if (!string.IsNullOrEmpty(item.NameWithType))
+            {
+                result["nameWithType"] = item.NameWithType;
+            }
+            if (item.NamesWithType.Count > 0)
+            {
+                foreach (var pair in item.NamesWithType)
+                {
+                    result["nameWithType." + pair.Key] = pair.Value;
+                }
+            }
+            yield return result;
+            // generate overload xref spec.
+            if (item.Overload != null)
+            {
+                var reference = references.Find(r => r.Uid == item.Overload);
+                if (reference != null)
+                {
+                    yield return GetXRefInfo(reference, key);
+                }
+            }
+        }
+
+        private static XRefSpec GetXRefInfo(ReferenceViewModel item, string key)
+        {
+            var result = GetXRefSpecFromReference(item);
+            result.Href = ((RelativePath)key).UrlEncode().ToString();
+            return result;
+        }
+
+        private static XRefSpec GetXRefSpecFromReference(ReferenceViewModel item)
+        {
+            var result = new XRefSpec
+            {
+                Uid = item.Uid,
+                Name = item.Name,
+                Href = item.Href,
+                CommentId = item.CommentId,
+                IsSpec = item.Specs.Count > 0,
+            };
+            if (item.NameInDevLangs.Count > 0)
+            {
+                foreach (var pair in item.NameInDevLangs)
+                {
+                    result["name." + pair.Key] = pair.Value;
+                }
+            }
+            if (!string.IsNullOrEmpty(item.FullName))
+            {
+                result["fullName"] = item.FullName;
+            }
+            if (item.FullNameInDevLangs.Count > 0)
+            {
+                foreach (var pair in item.FullNameInDevLangs)
+                {
+                    result["fullName." + pair.Key] = pair.Value;
+                }
+            }
+            if (!string.IsNullOrEmpty(item.NameWithType))
+            {
+                result["nameWithType"] = item.NameWithType;
+            }
+            if (item.NameWithTypeInDevLangs.Count > 0)
+            {
+                foreach (var pair in item.NameWithTypeInDevLangs)
+                {
+                    result["nameWithType." + pair.Key] = pair.Value;
+                }
+            }
+            if (item.Additional != null)
+            {
+                foreach (var pair in item.Additional)
+                {
+                    if (pair.Value is string s)
+                    {
+                        result[pair.Key] = s;
+                    }
+                }
+            }
+            return result;
         }
 
         public Task ExportXrefMap(Context ctxt)
@@ -87,9 +180,9 @@ namespace Microsoft.DocAsCode
                     await Load(ctxt);
 
                     // export xrefmap
-                    if (_fm.Properties.XrefSpec != null)
+                    foreach (var i in _model.Items.SelectMany(s => GetXRefInfo(s, _file.Key, _model.References)))
                     {
-                        ctxt.XrefSpecMapping[_file.Key] = ImmutableArray.Create(_fm.Properties.XrefSpec);
+                        ctxt.XrefSpecMapping[i.Uid] = i;
                     }
                     // TODO: external xref map needed?
                 });
@@ -143,6 +236,13 @@ namespace Microsoft.DocAsCode
                        await Load(context);
                        await ExportXrefMap(context);
 
+                       Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
+                       BuildPhaseUtility.RunBuildSteps(
+                           _processor.BuildSteps,
+                           buildStep =>
+                           {
+                               buildStep.Build(_fm, _config.HostService);
+                           });
                        var linkToFiles = _fm.LinkToFiles;
                        var linkToUids = _fm.LinkToUids;
 
@@ -151,15 +251,13 @@ namespace Microsoft.DocAsCode
                            linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
                            .Concat(new Task[] { Task.FromResult(CalcNearestToc(context)) })
                            );
-                       var result = _processor.Save(_fm);
-                       if (result != null)
+                       _processor.Save(_fm);
+                       _config.DBC.XRefSpecMap = context.XrefSpecMapping;
+                       // apply template
+                       using (new LoggerPhaseScope("ApplyTemplate"))
                        {
-                           // apply template
-                           using (new LoggerPhaseScope("ApplyTemplate"))
-                           {
-                               var manifest = _config.TemplateProcessor.ProcessOne(_fm, result.DocumentType, _config.ApplyTemplateSettings);
-                               context.ManifestItems.Add(manifest);
-                           }
+                           var manifest = _config.TemplateProcessor.ProcessOne(_fm, "ManagedReference", _config.ApplyTemplateSettings);
+                           context.ManifestItems.Add(manifest);
                        }
                    });
         }

@@ -89,7 +89,7 @@ namespace Microsoft.DocAsCode.Dfm
                 .AddAlias("assembly", "nasm", ".asm")
                 .AddAlias("batchfile", ".bat", ".cmd")
                 .AddAlias("cpp", "c", "c++", "objective-c", "obj-c", "objc", "objectivec", ".c", ".cpp", ".h", ".hpp", ".cc")
-                .AddAlias("csharp", "cs", ".cs")
+                .AddAlias("csharp", "cs", ".cs", "csharp-interactive")
                 .AddAlias("cuda", ".cu", ".cuh")
                 .AddAlias("d", "dlang", ".d")
                 .AddAlias("erlang", ".erl")

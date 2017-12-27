@@ -4,6 +4,7 @@
 namespace Microsoft.DocAsCode.Build.Engine
 {
     using System;
+    using System.Collections.Generic;
     using System.Collections.Immutable;
 
     using Microsoft.DocAsCode.Build.Engine.Incrementals;
@@ -13,6 +14,10 @@ namespace Microsoft.DocAsCode.Build.Engine
     {
         [IncrementalIgnore]
         public FileCollection Files { get; set; }
+
+        public IEnumerable<FileAndType> FileEnumerable { get; set; }
+
+        public string BaseDirectory { get; set; }
 
         [IncrementalIgnore]
         public string OutputBaseDir { get; set; }

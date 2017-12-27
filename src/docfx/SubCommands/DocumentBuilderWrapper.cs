@@ -157,19 +157,19 @@ namespace Microsoft.DocAsCode.SubCommands
                 var ms = msp.CreateMarkdownService(
                     new MarkdownServiceParameters
                     {
-                        BasePath = parameter.Files.DefaultBaseDir,
+                        BasePath = parameter.BaseDirectory,
                         TemplateDir = parameter.TemplateDir,
                         Extensions = parameter.MarkdownEngineParameters,
                         Tokens = tokens,
                     });
-                var hs = new HostServiceVNext(parameter.Files.DefaultBaseDir, parameter.VersionName, parameter.VersionDir, 0, parameter.GroupInfo)
+                var hs = new HostServiceVNext(parameter.BaseDirectory, parameter.VersionName, parameter.VersionDir, 0, parameter.GroupInfo)
                 {
                     MarkdownService = ms,
                     Template = tp
                 };
-                // disable transform and export raw model only
-                parameter.ApplyTemplateSettings.TransformDocument = false;
-                parameter.ApplyTemplateSettings.RawModelExportSettings.Export = true;
+                //// disable transform and export raw model only
+                //parameter.ApplyTemplateSettings.TransformDocument = false;
+                //parameter.ApplyTemplateSettings.RawModelExportSettings.Export = true;
 
                 var nextEngine = new EngineVNext(new Config
                 {
@@ -186,7 +186,7 @@ namespace Microsoft.DocAsCode.SubCommands
                 FileCollection inscopeFile;
                 if (changeList == null)
                 {
-                    inscopeFile = parameter.Files;
+                    inscopeFile = null;
                 }
                 else
                 {
@@ -196,7 +196,7 @@ namespace Microsoft.DocAsCode.SubCommands
 
                 using (new LoggerPhaseScope("VNEXT", LogLevel.Info))
                 {
-                    await nextEngine.Build(parameter.Files, inscopeFile, outputDirectory);
+                    await nextEngine.Build(parameter.FileEnumerable, inscopeFile, outputDirectory);
                 }
             }
         }
@@ -402,15 +402,23 @@ namespace Microsoft.DocAsCode.SubCommands
                 }
                 using (new LoggerPhaseScope("Glob", LogLevel.Info))
                 {
-                    p.Files = GetFileCollectionFromFileMapping(
-                    baseDirectory,
-                    GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Content)),
-                    GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Overwrite)),
-                    GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Resource)));
+                    p.FileEnumerable = GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Article, pair.Value.GetFileMapping(FileMappingType.Content)).Concat(
+                    GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Resource, pair.Value.GetFileMapping(FileMappingType.Resource))
+                    ).Concat(
+                    GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Overwrite, pair.Value.GetFileMapping(FileMappingType.Overwrite))
+                    ).ToArray();
                 }
-
+                //using (new LoggerPhaseScope("Glob", LogLevel.Info))
+                //{
+                //    p.Files = GetFileCollectionFromFileMapping(
+                //    baseDirectory,
+                //    GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Content)),
+                //    GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Overwrite)),
+                //    GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Resource)));
+                //}
+                p.BaseDirectory = baseDirectory;
                 p.VersionName = pair.Key;
-                p.Changes = GetIntersectChanges(p.Files, changeList);
+                // p.Changes = GetIntersectChanges(p.Files, changeList);
                 p.RootTocPath = pair.Value.RootTocPath;
                 yield return p;
             }
