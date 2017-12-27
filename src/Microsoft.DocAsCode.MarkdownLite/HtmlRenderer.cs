@@ -227,6 +227,8 @@ namespace Microsoft.DocAsCode.MarkdownLite
         }
 
         public virtual StringBuffer Render(IMarkdownRenderer renderer, MarkdownLinkInlineToken token, MarkdownInlineContext context)
+            => Render(renderer, token, token.Href, context);
+        public virtual StringBuffer Render(IMarkdownRenderer renderer, MarkdownLinkInlineToken token, string href, MarkdownInlineContext context)
         {
             if (renderer.Options.Sanitize)
             {
@@ -234,7 +236,7 @@ namespace Microsoft.DocAsCode.MarkdownLite
 
                 try
                 {
-                    prot = Regex.Replace(StringHelper.DecodeURIComponent(token.Href), @"[^\w:]", string.Empty).ToLower();
+                    prot = Regex.Replace(StringHelper.DecodeURIComponent(href), @"[^\w:]", string.Empty).ToLower();
                 }
                 catch (Exception)
                 {
@@ -247,12 +249,11 @@ namespace Microsoft.DocAsCode.MarkdownLite
                 }
             }
 
-            var result = (StringBuffer)"<a href=\"" + StringHelper.Escape(token.Href) + "\"";
+            var result = (StringBuffer)"<a href=\"" + StringHelper.Escape(href) + "\"";
             if (!string.IsNullOrEmpty(token.Title))
             {
                 result = result + " title=\"" + StringHelper.Escape(token.Title) + "\"";
             }
-            result = AppendAttribute(result, "data-raw-source", token.SourceInfo.Markdown);
             result = AppendSourceInfo(result, renderer, token);
             result += ">";
 
@@ -266,8 +267,10 @@ namespace Microsoft.DocAsCode.MarkdownLite
         }
 
         public virtual StringBuffer Render(IMarkdownRenderer renderer, MarkdownImageInlineToken token, MarkdownInlineContext context)
+            => Render(renderer, token, token.Href, context);
+        public virtual StringBuffer Render(IMarkdownRenderer renderer, MarkdownImageInlineToken token, string href, MarkdownInlineContext context)
         {
-            var result = (StringBuffer)"<img src=\"" + StringHelper.Escape(token.Href) + "\" alt=\"" + StringHelper.Escape(token.Text) + "\"";
+            var result = (StringBuffer)"<img src=\"" + StringHelper.Escape(href) + "\" alt=\"" + StringHelper.Escape(token.Text) + "\"";
             if (!string.IsNullOrEmpty(token.Title))
             {
                 result = result + " title=\"" + StringHelper.Escape(token.Title) + "\"";

@@ -34,14 +34,10 @@ namespace Microsoft.DocAsCode.Build.Engine
             {
                 throw new ArgumentNullException(nameof(file));
             }
-            if (sourceFiles == null)
-            {
-                throw new ArgumentNullException(nameof(sourceFiles));
-            }
             return ParseCore(markupResult, file, sourceFiles);
         }
 
-        private static MarkupResult ParseCore(MarkupResult markupResult, string file, ImmutableDictionary<string, FileAndType> sourceFiles)
+        private static MarkupResult ParseCore(MarkupResult markupResult, string file, ImmutableDictionary<string, FileAndType> sourceFiles = null)
         {
             var doc = new HtmlDocument();
             doc.LoadHtml(markupResult.Html);
@@ -106,7 +102,7 @@ namespace Microsoft.DocAsCode.Build.Engine
                 {
                     var path = (RelativePath)currentFile + RelativePath.FromUrl(linkFile);
                     var file = path.GetPathFromWorkingFolder();
-                    if (sourceFiles.ContainsKey(file))
+                    if (sourceFiles != null && sourceFiles.ContainsKey(file))
                     {
                         string anchorInHref;
                         if (!string.IsNullOrEmpty(anchor) &&

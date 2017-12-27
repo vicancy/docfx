@@ -62,6 +62,39 @@ namespace Microsoft.DocAsCode.Build.Engine
             return true;
         }
 
+        public ManifestItem ProcessOne(FileModel fm, string documentType, ApplyTemplateSettings settings, IDictionary<string, object> globals = null)
+        {
+            using (new LoggerPhaseScope("Apply Templates", LogLevel.Verbose))
+            {
+                var item = new InternalManifestItem
+                {
+                    DocumentType = documentType,
+                    FileWithoutExtension = fm.FileAndType.DestFile,
+                    ResourceFile = documentType == "Resource" ? fm.File : null,
+                    Key = fm.Key,
+                    LocalPathFromRoot = fm.OriginalFileAndType.File,
+                    Model = fm.ModelWithCache,
+                    InputFolder = fm.OriginalFileAndType.BaseDir,
+                    Metadata = new Dictionary<string, object>((IDictionary<string, object>)fm.ManifestProperties),
+                };
+
+                if (globals == null)
+                {
+                    globals = Tokens.ToDictionary(pair => pair.Key, pair => (object)pair.Value);
+                }
+
+                if (settings == null)
+                {
+                    settings = _context?.ApplyTemplateSettings;
+                }
+                var transformer = new TemplateModelTransformer(_context, _templateCollection, settings, globals);
+                using (new LoggerFileScope(item.LocalPathFromRoot ?? item.Key))
+                {
+                    return transformer.Transform(item);
+                }
+            }
+        }
+
         internal List<ManifestItem> Process(List<InternalManifestItem> manifest, ApplyTemplateSettings settings, IDictionary<string, object> globals = null)
         {
             using (new LoggerPhaseScope("Apply Templates", LogLevel.Verbose))
@@ -84,7 +117,7 @@ namespace Microsoft.DocAsCode.Build.Engine
             }
         }
 
-        internal void ProcessDependencies(HashSet<string> documentTypes, ApplyTemplateSettings settings)
+        public void ProcessDependencies(HashSet<string> documentTypes, ApplyTemplateSettings settings)
         {
             if (settings.Options.HasFlag(ApplyTemplateOptions.TransformDocument))
             {

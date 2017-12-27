@@ -83,14 +83,11 @@ namespace Microsoft.DocAsCode.Build.ConceptualDocuments
             }
             content[Constants.PropertyName.SystemKeys] = SystemKeys;
 
-            var localPathFromRoot = PathUtility.MakeRelativePath(EnvironmentContext.BaseDirectory, EnvironmentContext.FileAbstractLayer.GetPhysicalPath(file.File));
-
             return new FileModel(
                 file,
                 content,
                 serializer: new BinaryFormatter())
             {
-                LocalPathFromRoot = localPathFromRoot,
             };
         }
 

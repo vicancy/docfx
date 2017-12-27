@@ -4,6 +4,7 @@
 namespace Microsoft.DocAsCode.Dfm
 {
     using System;
+    using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.IO;
     using System.Linq;
@@ -17,7 +18,7 @@ namespace Microsoft.DocAsCode.Dfm
         private readonly DfmInclusionLoader _blockInclusionHelper = new DfmInclusionLoader();
         private readonly DfmCodeRenderer _codeRenderer = new DfmCodeRenderer();
 
-        public ImmutableDictionary<string, string> Tokens { get; set; }
+        public IReadOnlyDictionary<string, string> Tokens { get; set; }
 
         public virtual StringBuffer Render(IMarkdownRenderer renderer, DfmXrefInlineToken token, MarkdownInlineContext context)
         {

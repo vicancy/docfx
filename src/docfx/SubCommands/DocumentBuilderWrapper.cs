@@ -26,6 +26,7 @@ namespace Microsoft.DocAsCode.SubCommands
     using Microsoft.DocAsCode.Common;
     using Microsoft.DocAsCode.Exceptions;
     using Microsoft.DocAsCode.Plugins;
+    using System.Threading.Tasks;
 
     [Serializable]
     internal sealed class DocumentBuilderWrapper
@@ -80,7 +81,8 @@ namespace Microsoft.DocAsCode.SubCommands
             {
                 try
                 {
-                    BuildDocument(_config, _manager, _baseDirectory, _outputDirectory, _pluginDirectory, _templateDirectory);
+                    var task = Task.Run(() => BuildDocument(_config, _manager, _baseDirectory, _outputDirectory, _pluginDirectory, _templateDirectory));
+                    task.Wait();
                 }
                 catch (AggregateException agg) when (agg.InnerException is DocfxException || agg.InnerException is DocumentException)
                 {
@@ -105,10 +107,10 @@ namespace Microsoft.DocAsCode.SubCommands
             }
         }
 
-        public static void BuildDocument(BuildJsonConfig config, TemplateManager templateManager, string baseDirectory, string outputDirectory, string pluginDirectory, string templateDirectory)
+        public static async Task BuildDocument(BuildJsonConfig config, TemplateManager templateManager, string baseDirectory, string outputDirectory, string pluginDirectory, string templateDirectory)
         {
             IEnumerable<Assembly> assemblies;
-            using (new LoggerPhaseScope("LoadPluginAssemblies", LogLevel.Verbose))
+            using (new LoggerPhaseScope("LoadPluginAssemblies", LogLevel.Info))
             {
                 assemblies = LoadPluginAssemblies(pluginDirectory);
             }
@@ -130,17 +132,72 @@ namespace Microsoft.DocAsCode.SubCommands
             {
                 postProcessorNames = postProcessorNames.Add("SitemapGenerator");
             }
-
             ChangeList changeList = null;
             if (config.ChangesFile != null)
             {
                 changeList = ChangeList.Parse(config.ChangesFile, config.BaseDirectory);
-            }
+               }
 
-            using (var builder = new DocumentBuilder(assemblies, postProcessorNames, templateManager?.GetTemplatesHash(), config.IntermediateFolder, changeList?.From, changeList?.To, config.CleanupCacheHistory))
-            using (new PerformanceScope("building documents", LogLevel.Info))
+            var parameters = ConfigToParameter(config, templateManager, changeList, baseDirectory, outputDirectory, templateDirectory);
+
+            var msp = new DfmServiceProvider();
+
+            var logCodesLogListener = new LogCodesLogListener();
+            Logger.RegisterListener(logCodesLogListener);
+
+            foreach (var parameter in parameters)
             {
-                builder.Build(ConfigToParameter(config, templateManager, changeList, baseDirectory, outputDirectory, templateDirectory).ToList(), outputDirectory);
+                var falBuilder = FileAbstractLayerBuilder.Default
+                            .ReadFromRealFileSystem(EnvironmentContext.BaseDirectory)
+                            .WriteToRealFileSystem(parameter.OutputBaseDir);
+                EnvironmentContext.FileAbstractLayerImpl = falBuilder.Create();
+                var dbc = new DocumentBuildContext(parameter);
+                var tp = templateManager.GetTemplateProcessor(dbc, 64);
+                var tokens = tp.Tokens.ToImmutableDictionary();
+                var ms = msp.CreateMarkdownService(
+                    new MarkdownServiceParameters
+                    {
+                        BasePath = parameter.Files.DefaultBaseDir,
+                        TemplateDir = parameter.TemplateDir,
+                        Extensions = parameter.MarkdownEngineParameters,
+                        Tokens = tokens,
+                    });
+                var hs = new HostServiceVNext(parameter.Files.DefaultBaseDir, parameter.VersionName, parameter.VersionDir, 0, parameter.GroupInfo)
+                {
+                    MarkdownService = ms,
+                    Template = tp
+                };
+                // disable transform and export raw model only
+                parameter.ApplyTemplateSettings.TransformDocument = false;
+                parameter.ApplyTemplateSettings.RawModelExportSettings.Export = true;
+
+                var nextEngine = new EngineVNext(new Config
+                {
+                    pageUrlExtension = string.Empty,
+                    pageFileExtension = ".html",
+                    TemplateProcessor = tp,
+                    ApplyTemplateSettings = parameter.ApplyTemplateSettings,
+                    HostService = hs,
+                    Metadata = parameter.Metadata,
+                    FileMetadata = parameter.FileMetadata,
+                    DBC = dbc,
+                });
+
+                FileCollection inscopeFile;
+                if (changeList == null)
+                {
+                    inscopeFile = parameter.Files;
+                }
+                else
+                {
+                    inscopeFile = new FileCollection(baseDirectory);
+                    inscopeFile.Add(DocumentType.Article, changeList.Where(s => s.Kind != ChangeKindWithDependency.None || s.Kind != ChangeKindWithDependency.Deleted).Select(s => s.FilePath));
+                }
+
+                using (new LoggerPhaseScope("VNEXT", LogLevel.Info))
+                {
+                    await nextEngine.Build(parameter.Files, inscopeFile, outputDirectory);
+                }
             }
         }
 
@@ -343,11 +400,15 @@ namespace Microsoft.DocAsCode.SubCommands
                         }
                     }
                 }
-                p.Files = GetFileCollectionFromFileMapping(
+                using (new LoggerPhaseScope("Glob", LogLevel.Info))
+                {
+                    p.Files = GetFileCollectionFromFileMapping(
                     baseDirectory,
                     GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Content)),
                     GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Overwrite)),
                     GlobUtility.ExpandFileMapping(baseDirectory, pair.Value.GetFileMapping(FileMappingType.Resource)));
+                }
+
                 p.VersionName = pair.Key;
                 p.Changes = GetIntersectChanges(p.Files, changeList);
                 p.RootTocPath = pair.Value.RootTocPath;

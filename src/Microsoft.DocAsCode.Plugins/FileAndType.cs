@@ -50,6 +50,7 @@ namespace Microsoft.DocAsCode.Plugins
             SourceDir = sourceDir?.Replace('\\', '/') ?? string.Empty;
             DestinationDir = destinationDir?.Replace('\\', '/') ?? string.Empty;
             StringComparer = GetStringComparer();
+            Key = File[0] == '~' ? File : "~/" + File;
         }
 
         [JsonIgnore]
@@ -61,11 +62,19 @@ namespace Microsoft.DocAsCode.Plugins
         [JsonProperty("file")]
         public string File { get; }
 
+        public string DestFile { get; set; }
+
+        public string UrlExtension { get; set; }
+
+        public string Key { get; }
+
         [JsonIgnore]
         public string FullPath { get; }
 
         [JsonProperty("type")]
         public DocumentType Type { get; }
+
+        public bool IsToc { get; set; }
 
         [JsonProperty("sourceDir")]
         public string SourceDir { get; set; }
