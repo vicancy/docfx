@@ -69,7 +69,7 @@ namespace Microsoft.DocAsCode.Build.Engine
                 var item = new InternalManifestItem
                 {
                     DocumentType = documentType,
-                    FileWithoutExtension = fm.FileAndType.DestFile,
+                    FileWithoutExtension = fm.FileAndType.DestFile.Substring(0, fm.FileAndType.DestFile.Length - 5),
                     ResourceFile = documentType == "Resource" ? fm.File : null,
                     Key = fm.Key,
                     LocalPathFromRoot = fm.OriginalFileAndType.File,

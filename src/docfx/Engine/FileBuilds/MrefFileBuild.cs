@@ -31,11 +31,15 @@ namespace Microsoft.DocAsCode
         private FileModel _fm;
         private TaskRegister _tr = new TaskRegister();
         private PageViewModel _model;
+
+        private RelativePath _destFile ;
+
         public MrefFileBuild(FileAndType file, Config config, IDocumentProcessor processor)
         {
             _config = config;
             _file = file;
             _processor = processor;
+            _destFile = ((RelativePath)_file.DestFile).RemoveWorkingFolder();
         }
 
         public Task Load(Context context)
@@ -61,15 +65,14 @@ namespace Microsoft.DocAsCode
                 );
         }
 
-
-        private static IEnumerable<XRefSpec> GetXRefInfo(ItemViewModel item, string key,
+        private IEnumerable<XRefSpec> GetXRefInfo(ItemViewModel item, string key,
             List<ReferenceViewModel> references)
         {
             var result = new XRefSpec
             {
                 Uid = item.Uid,
                 Name = item.Name,
-                Href = ((RelativePath)key).UrlEncode().ToString(),
+                Href = (_destFile.GetPathFromWorkingFolder()).UrlEncode().ToString(),
                 CommentId = item.CommentId,
             };
             if (item.Names.Count > 0)
@@ -199,9 +202,12 @@ namespace Microsoft.DocAsCode
                 if (context.FilePossibleTocMapping.TryGetValue(_file.Key, out var tocs))
                 {
                     var parentTocFiles = tocs.Where(s => s.ForSure || uids.Contains(s.Uid)).Select(s => new FileInfos(s.TocKey, (RelativePath)context.FileMapping[s.TocKey].DestFile));
-                    nearestToc = GetNearestToc(parentTocFiles, (RelativePath)_file.DestFile);
-
-                    Logger.LogDiagnostic($"It's calculated nearest toc is {nearestToc.Key}");
+                    nearestToc = GetNearestToc(parentTocFiles, _destFile);
+                    if (nearestToc != null)
+                    {
+                        _model.Metadata["_tocRel"] = (string)nearestToc.File.RemoveWorkingFolder().MakeRelativeTo(_destFile);
+                        Logger.LogDiagnostic($"It's calculated nearest toc is {nearestToc.Key}");
+                    }
                 }
             }
 
@@ -233,31 +239,44 @@ namespace Microsoft.DocAsCode
             return _tr.RegisterAndCall(nameof(Build),
                    async () =>
                    {
-                       await Load(context);
-                       await ExportXrefMap(context);
-
-                       Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
-                       BuildPhaseUtility.RunBuildSteps(
-                           _processor.BuildSteps,
-                           buildStep =>
-                           {
-                               buildStep.Build(_fm, _config.HostService);
-                           });
-                       var linkToFiles = _fm.LinkToFiles;
-                       var linkToUids = _fm.LinkToUids;
-
-                       // wait for the dependent uids to complete
-                       await Task.WhenAll(
-                           linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
-                           .Concat(new Task[] { Task.FromResult(CalcNearestToc(context)) })
-                           );
-                       _processor.Save(_fm);
-                       _config.DBC.XRefSpecMap = context.XrefSpecMapping;
-                       // apply template
-                       using (new LoggerPhaseScope("ApplyTemplate"))
+                       using (new LoggerFileScope(_file.File))
                        {
-                           var manifest = _config.TemplateProcessor.ProcessOne(_fm, "ManagedReference", _config.ApplyTemplateSettings);
-                           context.ManifestItems.Add(manifest);
+                           await Load(context);
+                           await ExportXrefMap(context);
+
+                           Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
+                           BuildPhaseUtility.RunBuildSteps(
+                               _processor.BuildSteps,
+                               buildStep =>
+                               {
+                                   buildStep.Build(_fm, _config.HostService);
+                               });
+                           var linkToFiles = _fm.LinkToFiles;
+                           var linkToUids = _fm.LinkToUids;
+
+                           // wait for the dependent uids to complete
+                           using (new LoggerPhaseScope($"Dedendencies({linkToUids.Count}).ExportXrefMap", LogLevel.Info))
+                           {
+                               await Task.WhenAll(
+                               linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
+                               .Concat(new Task[] { Task.FromResult(CalcNearestToc(context)) })
+                               );
+                           }
+                           using (new LoggerPhaseScope("CalcMetadata"))
+                           {
+                               _model.Metadata["_rel"] = (string)(RelativePath.Empty).MakeRelativeTo(_destFile);
+                               _model.Metadata["document_type"] = "Reference";
+                           }
+
+                           _processor.Save(_fm);
+                           _config.DBC.XRefSpecMap = context.XrefSpecMapping;
+
+                           // apply template
+                           using (new LoggerPhaseScope("ApplyTemplate"))
+                           {
+                               var manifest = _config.TemplateProcessor.ProcessOne(_fm, "ManagedReference", _config.ApplyTemplateSettings);
+                               context.ManifestItems.Add(manifest);
+                           }
                        }
                    });
         }

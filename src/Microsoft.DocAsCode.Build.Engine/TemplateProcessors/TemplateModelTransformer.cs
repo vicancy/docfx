@@ -5,8 +5,10 @@ namespace Microsoft.DocAsCode.Build.Engine
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.IO;
     using System.Linq;
+    using System.Text;
     using System.Threading.Tasks;
     using System.Web;
 
@@ -49,11 +51,59 @@ namespace Microsoft.DocAsCode.Build.Engine
             }
 
             var model = ConvertObjectToDictionary(item.Model.Content);
-            
-            // Add ops required properties before process
-            model[""] = "";
-
             AppendGlobalMetadata(model);
+
+            // Add ops required properties before process
+            model["content_git_url"] = "https://github.com/MicrosoftDocs/dotnet-ci-demo-1/blob/master/ci-demo/xml/CatLibrary/Cat`2.xml";
+            model["original_ref_skeleton_git_url"] = "https://github.com/MicrosoftDocs/dotnet-ci-demo-1/blob/master/ci-demo/xml/CatLibrary/Cat`2.xml";
+            model["search.ms_sitename"] = "Docs";
+
+            model["search.ms_docsetname"] = "dotnet";
+            model["search.ms_product"] = "MSDN";
+            model["version"] = null;
+            model["_op_canonicalUrlPrefix"] = "https://ppe.docs.microsoft.com/en-us/dotnet-ci-demo-1/";
+            model["locale"] = "en-us";
+            model["site_name"] = "Docs";
+            model["_op_openToPublicContributors"] = true;
+            model["depot_name"] = "MSDN.dotnet-ci-demo-1";
+
+            model["_op_gitRefSkeletonCommitHistory"] = new string[] { };
+            model["open_to_public_contributors"] = true;
+            model["api_name"] = new string[] {
+    "CatLibrary.Cat`2.Age",
+    "CatLibrary.Cat`2.get_Age",
+    "CatLibrary.Cat`2.set_Age"
+  };
+            model["api_location"] = new string[] {
+    "CatLibrary.dll"
+  };
+            model["topic_type"] = new string[] {
+    "apiref"
+  };
+            model["api_type"] = new string[] {
+    "Assembly"
+  };
+            model["f1_keywords"] = new string[] {
+    "CatLibrary.Cat`2.Age",
+    "CatLibrary::Cat`2::Age"
+  };
+            model["dev_langs"] = new string[] {
+    "CSharp",
+    "powershell",
+    "VB"
+  };
+            model["helpviewer_keywords"] = new string[] {
+    "Cat<T,K>.Age property [.NET]",
+    "Age property [.NET] class Cat<T,K>",
+  };
+            model["updated_at"] = "2017-12-19 07:11 AM";
+            model["document_id"] = "9b34a91d-485c-7e2c-12a7-cd53ca125078";
+            model["document_version_independent_id"] = "3e5dd3da-ff84-5c05-b8c7-7ee3ad7291cb";
+            model["fileRelativePath"] = item.FileWithoutExtension + ".html";
+            //model["_tocPath"] = "api/dotnet-ci-demo-1/_splitted/CatLibrary/toc.json";
+            //model["_path"] = "api/CatLibrary.Cat-2.Age.html";
+            //model["_key"] = "api/CatLibrary.Cat-2.Age.yml";
+            //model["_tocKey"] = "~/api/dotnet-ci-demo-1/_splitted/CatLibrary/toc.yml";
 
             if (_settings.Options.HasFlag(ApplyTemplateOptions.ExportRawModel))
             {
@@ -90,7 +140,7 @@ namespace Microsoft.DocAsCode.Build.Engine
             }
 
             var unresolvedXRefs = new List<XRefDetails>();
-            string html;
+            string html = null;
             // Must convert to JObject first as we leverage JsonProperty as the property name for the model
             foreach (var template in templateBundle.Templates)
             {
@@ -186,12 +236,86 @@ namespace Microsoft.DocAsCode.Build.Engine
                     throw new PathTooLongException(message, e);
                 }
             }
+            if (item.DocumentType == "ManagedReference")
+            {
+                var opsModel = ToOPSModel(model, html);
+
+                JsonUtility.Serialize(item.FileWithoutExtension + ".raw.page.json", opsModel, Newtonsoft.Json.Formatting.Indented);
+            }
 
             item.Model = null;
-
             LogInvalidXRefs(unresolvedXRefs);
 
             return manifestItem;
+        }
+
+        static JObject ToOPSModel(IDictionary<string, object> model, string html)
+        {
+            var pageMetadata = new Dictionary<string, object>
+            {
+                ["site_name"] = "Docs",
+                ["locale"] = "en-us",
+                ["depot_name"] = $"MSDN.Docs",
+                ["pagetype"] = model["document_type"],
+                ["pdf_url_template"] = "https://docs.microsoft.com/pdfstore/en-us/MSDN.Docs/{branchName}{pdfName}",
+                ["document_id"] = model["document_id"],
+                ["document_version_independent_id"] = model["document_version_independent_id"],
+                ["version"] = 0,
+                ["word_count"] = 100,
+                ["search.ms_product"] = "MSDN",
+                ["search.ms_docsetname"] = "Dotnet",
+                ["search.ms_sitename"] = "Docs",
+                ["toc_rel"] = model["_tocRel"],
+            };
+
+            var rawMetadata = new JObject
+            {
+                ["title"] = JValue.FromObject( model["uid"]),
+                ["layout"] = JValue.FromObject(model["document_type"]),
+                ["_op_rawTitle"] = JValue.FromObject(model["uid"]),
+                ["open_to_public_contributors"] = JValue.FromObject(model["open_to_public_contributors"]),
+                ["_op_openToPublicContributors"] = JValue.FromObject(model["_op_openToPublicContributors"]),
+                ["_op_wordCount"] = JValue.FromObject(100),
+                ["_op_canonicalUrlPrefix"] = JValue.FromObject(model["_op_canonicalUrlPrefix"]),
+                ["_op_canonicalUrl"] = JValue.FromObject(model["_op_canonicalUrlPrefix"]),
+                ["canonical_url"] = JValue.FromObject(model["_op_canonicalUrlPrefix"]),
+                ["fileRelativePath"] = JValue.FromObject(model["fileRelativePath"]),
+                ["_op_pdfUrlPrefixTemplate"] = JValue.FromObject("https://docs.microsoft.com/pdfstore/en-us/docs/{branchName}"),
+            };
+
+            var sks = new HashSet<string>((model["_systemKeys"] as IEnumerable<object>).Select(s => s.ToString()));
+            foreach(var key in model)
+            {
+                if (!sks.Contains(key.Key))
+                {
+                    rawMetadata[key.Key] = key.Value == null ? null : JValue.FromObject(key.Value);
+                }
+            }
+
+            var result = new JObject
+            {
+                ["pageMetadata"] = ToMetaHtml(pageMetadata),
+                ["rawMetadata"] = rawMetadata,
+                ["themesRelativePathToOutputRoot"] = "_themes/",
+            };
+
+            result["content"] = html;
+
+            return result;
+        }
+
+        private static string ToMetaHtml(Dictionary<string, object> metadata)
+        {
+            var sb = new StringBuilder();
+            foreach (var meta in metadata)
+            {
+                sb.Append("<meta name=\"");
+                sb.Append(HttpUtility.HtmlEncode(meta.Key));
+                sb.Append("\" content=\"");
+                sb.Append(HttpUtility.HtmlEncode(meta.Value));
+                sb.Append("\" />");
+            }
+            return sb.ToString();
         }
 
         private void LogInvalidXRefs(List<XRefDetails> unresolvedXRefs)
@@ -333,7 +457,11 @@ namespace Microsoft.DocAsCode.Build.Engine
 
             TransformHtmlCore(context, sourceFilePath, destFilePath, document, out unresolvedXRefs);
 
-            return document.ToString();
+            using (var sw = new StringWriter())
+            {
+                document.Save(sw);
+                return sw.ToString();
+            }
         }
 
         private void TransformHtmlCore(IDocumentBuildContext context, string sourceFilePath, string destFilePath, HtmlDocument html, out List<XRefDetails> unresolvedXRefs)

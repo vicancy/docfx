@@ -64,7 +64,7 @@ namespace Microsoft.DocAsCode.Plugins
 
         public string DestFile { get; set; }
 
-        public string UrlExtension { get; set; }
+        public string DestUrl { get; set; }
 
         public string Key { get; }
 

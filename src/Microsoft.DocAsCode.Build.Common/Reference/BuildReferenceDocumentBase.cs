@@ -18,8 +18,8 @@ namespace Microsoft.DocAsCode.Build.Common
     {
         private readonly IModelAttributeHandler _defaultHandler =
             new CompositeModelAttributeHandler(
-                new UniqueIdentityReferenceHandler(),
-                new MarkdownContentHandler()
+                new UniqueIdentityReferenceHandler()
+                ,new MarkdownContentHandler()
             );
 
         public override int BuildOrder => 0;

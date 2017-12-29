@@ -23,9 +23,9 @@ namespace Microsoft.DocAsCode.Common
             var file = item.File;
             var line = item.Line;
             if (level < LogLevelThreshold) return;
-            var now = DateTime.UtcNow.ToString("yy-MM-dd hh:mm:ss.fff");
+            var now = DateTime.UtcNow.ToString("hh:mm:ss.fff");
 
-            var formatter = $"[{now}]{level}:";
+            var formatter = $"[{now}]";
             if (!string.IsNullOrEmpty(phase))
             {
                 formatter += $"[{phase}]";

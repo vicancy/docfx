@@ -7,7 +7,7 @@ namespace Microsoft.DocAsCode.SubCommands
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
-
+    using System.Threading.Tasks;
     using Microsoft.DocAsCode;
     using Microsoft.DocAsCode.Build.Engine;
     using Microsoft.DocAsCode.Common;
@@ -57,7 +57,7 @@ namespace Microsoft.DocAsCode.SubCommands
 
             BuildDocument(baseDirectory, outputFolder);
 
-            _templateManager.ProcessTheme(outputFolder, true);
+            // _templateManager.ProcessTheme(outputFolder, true);
             // TODO: SEARCH DATA
 
             if (Config?.Serve ?? false)
@@ -465,7 +465,9 @@ namespace Microsoft.DocAsCode.SubCommands
                     }
                     else
                     {
-                        DocumentBuilderWrapper.BuildDocument(Config, _templateManager, baseDirectory, outputDirectory, null, null);
+                        var task = Task.Run(
+                        () => DocumentBuilderWrapper.BuildDocument(Config, _templateManager, baseDirectory, outputDirectory, null, null));
+                        task.Wait();
                     }
                 }
             }

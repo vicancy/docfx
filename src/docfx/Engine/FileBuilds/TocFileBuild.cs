@@ -44,7 +44,7 @@ namespace Microsoft.DocAsCode
             return _tr.RegisterAndCall(nameof(Load),
                    async () =>
                    {
-                       using (new LoggerFileScope(_file.FullPath))
+                       using (new LoggerFileScope(_file.File))
                        {
                            Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
                            var mta = Utility.ApplyFileMetadata(_file.File, _config.Metadata, _config.FileMetadata);
@@ -73,9 +73,13 @@ namespace Microsoft.DocAsCode
                        }
                    });
         }
+
         public Task ExportXrefMap(Context context)
         {
-            return Task.CompletedTask;
+            using (new LoggerFileScope(_file.File))
+            {
+                return Load(context);
+            }
         }
 
         private IEnumerable<string> GetUids(string uid, Context context)
@@ -94,23 +98,29 @@ namespace Microsoft.DocAsCode
             return _tr.RegisterAndCall(nameof(Build),
                    async () =>
                    {
-                       await Load(context);
-                       await ExportXrefMap(context);
-
-                       var linkToFiles = _fm.LinkToFiles;
-                       var linkToUids = _fm.LinkToUids;
-                       // wait for the dependent uids to complete
-                       await Task.WhenAll(
-                           linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
-                           );
-                       // update href
-                       ResolveUid(Content, context);
-                       var result = _processor.Save(_fm);
-                       if (result != null)
+                       using (new LoggerFileScope(_file.File))
                        {
-                           // apply template
-                           var manifest = _config.TemplateProcessor.ProcessOne(_fm, result.DocumentType, _config.ApplyTemplateSettings);
-                           context.ManifestItems.Add(manifest);
+                           await Load(context);
+                           await ExportXrefMap(context);
+
+                           var linkToFiles = _fm.LinkToFiles;
+                           var linkToUids = _fm.LinkToUids;
+                           // wait for the dependent uids to complete
+                           using (new LoggerPhaseScope($"Dedendencies({linkToUids.Count}).ExportXrefMap", LogLevel.Info))
+                           {
+                               await Task.WhenAll(
+                                   linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
+                                   );
+                           }
+                           // update href
+                           ResolveUid(Content, context);
+                           var result = _processor.Save(_fm);
+                           if (result != null)
+                           {
+                               // apply template
+                               var manifest = _config.TemplateProcessor.ProcessOne(_fm, result.DocumentType, _config.ApplyTemplateSettings);
+                               context.ManifestItems.Add(manifest);
+                           }
                        }
                    });
         }

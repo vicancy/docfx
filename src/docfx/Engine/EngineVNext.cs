@@ -17,7 +17,9 @@ using System.Collections.Immutable;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.DocAsCode
@@ -30,31 +32,38 @@ namespace Microsoft.DocAsCode
         public EngineVNext(Config config)
         {
             _config = config;
+            ThreadPool.SetMinThreads(16, 16);
         }
 
-        public async Task Build(IEnumerable<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder)
+        public async Task BuildInscope(FileCollection inScopeFiles, Context context)
         {
-            Logger.LogInfo("start");
+            using (new LoggerPhaseScope("Build", LogLevel.Info))
+            {
+                await Task.WhenAll((inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values).ForEachInParallelAsync(s =>
+                {
+                    var step = Utility.CreateOrGetOneTask(s, context, _config);
+
+                    return step.Build(context);
+
+                }, 64));
+                Logger.LogInfo($"{context.FileStepMapping.Count} files task mapping executed.");
+            }
+        }
+
+        public async Task Build(IEnumerable<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder, int count)
+        {
+            
             var context = new Context();
 
             // 1. Get files, quick scan
             using (new LoggerPhaseScope("QuickScan", LogLevel.Info))
             {
-                await QuickScan(globalScopeFiles, context);
+                Logger.LogInfo($"Quick scanning {count} files.");
+                await QuickScanAsync(globalScopeFiles, context);
                 Logger.LogInfo($"{context.FileMapping.Count} files mapping created.");
             }
 
-            using (new LoggerPhaseScope("Build", LogLevel.Info))
-            {
-                await Task.WhenAll((inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values).ForEachInParallelAsync(s =>
-                 {
-                     var step = Utility.CreateOrGetOneTask(s, context, _config);
-
-                     return step.Build(context);
-
-                 }, 64));
-                Logger.LogInfo($"{context.FileStepMapping.Count} files task mapping executed.");
-            }
+            await BuildInscope(inScopeFiles, context);
 
             using (new LoggerPhaseScope("DumpContext", LogLevel.Info))
             {
@@ -66,17 +75,18 @@ namespace Microsoft.DocAsCode
             // _config.TemplateProcessor.ProcessDependencies(new HashSet<string> { "Conceptual" }, _config.ApplyTemplateSettings);
         }
 
-        private async Task QuickScan(IEnumerable<FileAndType> files, Context context)
+        private async Task QuickScanAsync(IEnumerable<FileAndType> files, Context context)
         {
-            foreach(var f in files)
+            var results = await files.SelectInParallelAsync(OneFileQuickScanAsync, 16);
+            foreach(var r in results)
             {
-                var uids = OneFileQuickScan(f);
-                if (f.IsToc)
+                var f = r.File;
+                if (r.File.IsToc)
                 {
-                    context.Tocs.TryAdd(f.Key, f);
+                    context.Tocs[r.File.Key] = r.File;
                 }
-                context.FileMapping[f.Key] = f;
-                foreach(var uid in uids)
+                context.FileMapping[r.File.Key] = r.File;
+                foreach (var uid in r.Uids)
                 {
                     if (context.PossibleUidMapping.TryGetValue(uid, out var list))
                     {
@@ -88,10 +98,15 @@ namespace Microsoft.DocAsCode
                     }
                 }
             }
-            // await files.EnumerateFiles().ForEachInParallelAsync(s => OneFileQuickScan(s, context));
         }
 
-        private IEnumerable<string> OneFileQuickScan(FileAndType file)
+        class FileScanResult
+        {
+            public IEnumerable<string> Uids { get; set; }
+            public FileAndType File { get; set; }
+        }
+
+        private async Task<FileScanResult> OneFileQuickScanAsync(FileAndType file)
         {
             IEnumerable<string> uids = Enumerable.Empty<string>();
             if (file.Type == DocumentType.Article)
@@ -99,16 +114,16 @@ namespace Microsoft.DocAsCode
                 if (_allowedToc.Contains(Path.GetFileName(file.File)))
                 {
                     file.DestFile = Path.ChangeExtension(file.File, ".json");
-                    file.UrlExtension = ".json";
+                    file.DestUrl = file.DestFile;
                     file.IsToc = true;
                 }
                 else
                 {
                     file.DestFile = Path.ChangeExtension(file.File, _config.pageFileExtension);
-                    file.UrlExtension = _config.pageUrlExtension;
+                    file.DestUrl = Path.ChangeExtension(file.File, _config.pageUrlExtension);
                     if (_allowedYaml.Contains(Path.GetExtension(file.File)))
                     {
-                        uids = QuickScanUids(file.File);
+                        uids = await QuickScanUidsAsync(file.File);
                     }
                 }
             }
@@ -117,62 +132,48 @@ namespace Microsoft.DocAsCode
                 file.DestFile = file.File;
             }
 
-            return uids;
-        }
-
-        private async Task OneFileQuickScanAsync(FileAndType file, Context context)
-        {
-            IEnumerable<string> uids = Enumerable.Empty<string>();
-            if (file.Type == DocumentType.Article)
-            {
-                if (_allowedToc.Contains(Path.GetFileName(file.File)))
-                {
-                    file.DestFile = Path.ChangeExtension(file.File, ".json");
-                    file.UrlExtension = ".json";
-                    context.Tocs.TryAdd(file.Key, file);
-                }
-                else
-                {
-                    file.DestFile = Path.ChangeExtension(file.File, _config.pageFileExtension);
-                    file.UrlExtension = _config.pageUrlExtension;
-                    if (_allowedYaml.Contains(Path.GetExtension(file.File)))
-                    {
-                        uids = QuickScanUids(file.File);
-                    }
-                }
-            }
-            else if (file.Type == DocumentType.Resource)
-            {
-                file.DestFile = file.File;
-            }
-
-            foreach(var uid in uids)
-            {
-                // context.PossibleUidMapping[uid] = new List<string> { file.Key };
-                // var list = context.PossibleUidMapping.GetOrAdd(uid, new List<string>());
-                // list.Add(file.Key);
-                // context.PossibleUidMapping.AddOrUpdate(uid, new List<string> { file.Key }, (k, v) => { v.Add(file.Key); return v; });
-            }
-
-            context.FileMapping.TryAdd(file.Key, file);
+            return new FileScanResult { Uids = uids, File = file };
         }
 
         private static readonly Regex UidMatcher = new Regex(@"^\s*-?\s+(uid|overload):\s*(.*)$", RegexOptions.Compiled);
-
-        private IEnumerable<string> QuickScanUids(string path)
+        private static StreamReader AsyncStreamReader(string path, Encoding encoding)
         {
-            foreach (var line in File.ReadLines(path))
+            FileStream stream = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            return new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true);
+        }
+
+        private async Task<IEnumerable<string>> QuickScanUidsAsync(string path)
+        {
+            var uids = new List<string>();
+            using (var reader = AsyncStreamReader(path, Encoding.UTF8))
             {
-                if (line == "references:")
+                string line;
+                while ((line = await reader.ReadLineAsync()) != null)
                 {
-                    yield break;
+                    if (line.Length == 11 &&
+                        line[0] == 'r' && line[1] == 'e' && line[2] == 'f' && line[3] == 'e' && line[4] == 'r' && line[5] == 'e' &&
+                        line[6] == 'n' && line[7] == 'c' && line[8] == 'e' && line[9] == 's' && line[10] == ':')
+                    // line == "references:")
+                    {
+                        break;
+                    }
+                    else if (line.Length > 7 && line[0] == '-' && line[1] == ' ' && line[2] == 'u' && line[3] == 'i' && line[4] == 'd' && line[5] == ':' && line[6] == ' ') //line.StartsWith("- uid: "))
+                    {
+                        uids.Add(line.Substring(7));
+                    }
+                    else if (line.Length > 12 &&
+                        line[0] == ' ' && line[1] == ' ' && line[2] == 'o' && line[3] == 'v' && line[4] == 'e' && line[5] == 'r' &&
+                        line[6] == 'l' && line[7] == 'o' && line[8] == 'a' && line[9] == 'd' && line[10] == ':' && line[11] == ' ')
+                    {
+                        uids.Add(line.Substring(12));
+                    }
                 }
-                else if (UidMatcher.IsMatch(line))
-                {
-                    yield return UidMatcher.Match(line).Groups[2].Value;
-                }
-                
             }
+
+            return uids;
         }
     }
 

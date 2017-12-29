@@ -200,6 +200,9 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.DocAsCode.DataContracts.UniversalReference", "src\Microsoft.DocAsCode.DataContracts.UniversalReference\Microsoft.DocAsCode.DataContracts.UniversalReference.csproj", "{8C31E8EB-0CCB-4442-9DDB-79822BB7D8C3}"
 EndProject
 Global
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x86 = Debug|x86

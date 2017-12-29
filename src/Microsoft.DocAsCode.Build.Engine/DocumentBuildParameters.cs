@@ -15,7 +15,7 @@ namespace Microsoft.DocAsCode.Build.Engine
         [IncrementalIgnore]
         public FileCollection Files { get; set; }
 
-        public IEnumerable<FileAndType> FileEnumerable { get; set; }
+        public FileAndType[] FileEnumerable { get; set; }
 
         public string BaseDirectory { get; set; }
 

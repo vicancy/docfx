@@ -144,7 +144,7 @@ namespace Microsoft.DocAsCode.SubCommands
 
             var logCodesLogListener = new LogCodesLogListener();
             Logger.RegisterListener(logCodesLogListener);
-
+            var engineCache = new Dictionary<string, EngineVNext>();
             foreach (var parameter in parameters)
             {
                 var falBuilder = FileAbstractLayerBuilder.Default
@@ -196,7 +196,7 @@ namespace Microsoft.DocAsCode.SubCommands
 
                 using (new LoggerPhaseScope("VNEXT", LogLevel.Info))
                 {
-                    await nextEngine.Build(parameter.FileEnumerable, inscopeFile, outputDirectory);
+                    await nextEngine.Build(parameter.FileEnumerable, inscopeFile, outputDirectory, parameter.FileEnumerable.Length);
                 }
             }
         }
@@ -402,11 +402,18 @@ namespace Microsoft.DocAsCode.SubCommands
                 }
                 using (new LoggerPhaseScope("Glob", LogLevel.Info))
                 {
-                    p.FileEnumerable = GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Article, pair.Value.GetFileMapping(FileMappingType.Content)).Concat(
-                    GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Resource, pair.Value.GetFileMapping(FileMappingType.Resource))
-                    ).Concat(
-                    GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Overwrite, pair.Value.GetFileMapping(FileMappingType.Overwrite))
-                    ).ToArray();
+                    var en = GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Article, pair.Value.GetFileMapping(FileMappingType.Content));
+                    var rr = pair.Value.GetFileMapping(FileMappingType.Resource);
+                    if (rr != null)
+                    {
+                        en = en.Concat(GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Resource, rr));
+                    }
+                    var oo = pair.Value.GetFileMapping(FileMappingType.Overwrite);
+                    if (oo != null)
+                    {
+                        en = en.Concat(GlobUtility.GetFilesFromFileMapping(baseDirectory, DocumentType.Overwrite, oo));
+                    }
+                    p.FileEnumerable = en.ToArray();
                 }
                 //using (new LoggerPhaseScope("Glob", LogLevel.Info))
                 //{
