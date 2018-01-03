@@ -80,12 +80,22 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
 
         protected override FileModel LoadArticle(FileAndType file, ImmutableDictionary<string, object> metadata)
         {
-            if (YamlMime.ReadMime(file.File) == null)
+            PageViewModel page;
+            if (file.File.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
-                Logger.LogWarning("Please add yamlmime in the first line of file, e.g.: `### YamlMime:ManagedReference`, we will decline yaml files without yamlmime in next release.", file: file.File);
+                page = JsonUtility.Deserialize<PageViewModel>(file.File);
+            }
+            else
+            {
+
+                if (YamlMime.ReadMime(file.File) == null)
+                {
+                    Logger.LogWarning("Please add yamlmime in the first line of file, e.g.: `### YamlMime:ManagedReference`, we will decline yaml files without yamlmime in next release.", file: file.File);
+                }
+
+                page = YamlUtility.Deserialize<PageViewModel>(file.File);
             }
 
-            var page = YamlUtility.Deserialize<PageViewModel>(file.File);
             if (page.Items == null || page.Items.Count == 0)
             {
                 return null;
@@ -152,6 +162,10 @@ namespace Microsoft.DocAsCode.Build.ManagedReference
                         return ProcessingPriority.Normal;
                     }
 
+                    if (".json".Equals(Path.GetExtension(file.File), StringComparison.OrdinalIgnoreCase) && !"toc".Equals(Path.GetFileNameWithoutExtension(file.File), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ProcessingPriority.Normal;
+                    }
                     break;
                 case DocumentType.Overwrite:
                     if (".md".Equals(Path.GetExtension(file.File), StringComparison.OrdinalIgnoreCase))

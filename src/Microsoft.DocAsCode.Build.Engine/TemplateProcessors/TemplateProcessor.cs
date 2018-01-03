@@ -87,11 +87,21 @@ namespace Microsoft.DocAsCode.Build.Engine
                 {
                     settings = _context?.ApplyTemplateSettings;
                 }
+
+                settings.HrefGenerator = new HrefGenerator();
                 var transformer = new TemplateModelTransformer(_context, _templateCollection, settings, globals);
                 using (new LoggerFileScope(item.LocalPathFromRoot ?? item.Key))
                 {
                     return transformer.Transform(item);
                 }
+            }
+        }
+
+        class HrefGenerator : ICustomHrefGenerator
+        {
+            public string GenerateHref(IFileLinkInfo href)
+            {
+                return Path.ChangeExtension(href.Href, string.Empty);
             }
         }
 

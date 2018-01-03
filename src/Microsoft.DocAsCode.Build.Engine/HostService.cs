@@ -131,7 +131,11 @@ namespace Microsoft.DocAsCode.Build.Engine
             {
                 throw new ArgumentNullException(nameof(ft));
             }
-            return MarkupCore(markdown, ft, false);
+            return new MarkupResult
+            {
+                Html = markdown
+            };
+            //return MarkupCore(markdown, ft, false);
         }
 
         public MarkupResult Markup(string markdown, FileAndType ft, bool omitParse)
@@ -144,7 +148,12 @@ namespace Microsoft.DocAsCode.Build.Engine
             {
                 throw new ArgumentNullException(nameof(ft));
             }
-            return MarkupCore(markdown, ft, omitParse);
+
+            return new MarkupResult
+            {
+                Html = markdown
+            };
+            //return MarkupCore(markdown, ft, omitParse);
         }
 
         public MarkupResult Parse(MarkupResult markupResult, FileAndType ft)

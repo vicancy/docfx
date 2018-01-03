@@ -197,6 +197,8 @@ namespace Microsoft.DocAsCode
 
             // get nearest toc
             FileInfos nearestToc = null;
+            _model.Metadata["_tocRel"] = null;
+
             using (new LoggerPhaseScope("CalcNearestToc"))
             {
                 if (context.FilePossibleTocMapping.TryGetValue(_file.Key, out var tocs))

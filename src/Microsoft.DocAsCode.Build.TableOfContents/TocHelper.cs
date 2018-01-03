@@ -65,6 +65,10 @@ namespace Microsoft.DocAsCode.Build.TableOfContents
                 {
                     return LoadYamlToc(file);
                 }
+                else if (fileType == TocFileType.Json)
+                {
+                    return LoadJsonToc(file);
+                }
             }
             catch (Exception e)
             {
@@ -74,6 +78,47 @@ namespace Microsoft.DocAsCode.Build.TableOfContents
             }
 
             throw new NotSupportedException($"{file} is not a valid TOC file, supported toc files could be \"{Constants.TableOfContents.MarkdownTocFileName}\" or \"{Constants.TableOfContents.YamlTocFileName}\".");
+        }
+
+        public static TocItemViewModel LoadJsonToc(string file)
+        {
+            if (string.IsNullOrEmpty(file))
+            {
+                throw new ArgumentNullException(nameof(file));
+            }
+
+            object obj;
+            try
+            {
+                obj = JsonUtility.Deserialize<TocViewModel>(file);
+            }
+            catch
+            {
+                try
+                {
+                    obj = JsonUtility.Deserialize<TocRootViewModel>(file);
+                }
+                catch (Exception ex)
+                {
+                    throw new NotSupportedException($"{file} is not a valid TOC file, detail: {ex.Message}.", ex);
+                }
+            }
+            if (obj is TocViewModel vm)
+            {
+                return new TocItemViewModel
+                {
+                    Items = vm,
+                };
+            }
+            if (obj is TocRootViewModel root)
+            {
+                return new TocItemViewModel
+                {
+                    Items = root.Items,
+                    Metadata = root.Metadata,
+                };
+            }
+            throw new NotSupportedException($"{file} is not a valid TOC file.");
         }
 
         public static TocItemViewModel LoadYamlToc(string file)

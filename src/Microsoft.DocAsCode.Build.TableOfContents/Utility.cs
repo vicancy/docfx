@@ -14,7 +14,7 @@ namespace Microsoft.DocAsCode.Build.TableOfContents
         public static bool IsSupportedFile(string file)
         {
             var fileType = GetTocFileType(file);
-            if (fileType == TocFileType.Markdown || fileType == TocFileType.Yaml)
+            if (fileType == TocFileType.Markdown || fileType == TocFileType.Yaml || fileType == TocFileType.Json)
             {
                 return true;
             }
@@ -77,9 +77,15 @@ namespace Microsoft.DocAsCode.Build.TableOfContents
             {
                 return TocFileType.Markdown;
             }
-            if (Constants.TableOfContents.YamlTocFileName.Equals(fileName, StringComparison.OrdinalIgnoreCase))
+            if (Constants.TableOfContents.YamlTocFileName.Equals(fileName, StringComparison.OrdinalIgnoreCase)
+                )
             {
                 return TocFileType.Yaml;
+            }
+
+            if ("toc.json".Equals(fileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return TocFileType.Json;
             }
 
             return TocFileType.None;

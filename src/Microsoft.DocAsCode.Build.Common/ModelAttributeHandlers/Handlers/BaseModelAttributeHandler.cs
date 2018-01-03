@@ -3,6 +3,7 @@
 
 namespace Microsoft.DocAsCode.Build.Common
 {
+    using Newtonsoft.Json.Linq;
     using System;
     using System.Collections;
     using System.Collections.Generic;
@@ -58,7 +59,7 @@ namespace Microsoft.DocAsCode.Build.Common
             }
             else
             {
-                if (context.NestedLevel > MaximumNestedLevel)
+                if (context.NestedLevel > MaximumNestedLevel || obj is JObject)
                 {
                     // If maximum nested level reached, return the object directly
                     return obj;

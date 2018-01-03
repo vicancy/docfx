@@ -135,8 +135,20 @@ namespace Microsoft.DocAsCode.SubCommands
             ChangeList changeList = null;
             if (config.ChangesFile != null)
             {
-                changeList = ChangeList.Parse(config.ChangesFile, config.BaseDirectory);
-               }
+                if (config.ChangesFile.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase))
+                {
+                    changeList = ChangeList.Parse(config.ChangesFile, config.BaseDirectory);
+                }
+                else
+                {
+                    var files = config.ChangesFile.Split(',');
+                    changeList = new ChangeList();
+                    foreach (var f in files)
+                    {
+                        changeList.Add(f, ChangeKind.Updated);
+                    }
+                }
+            }
 
             var parameters = ConfigToParameter(config, templateManager, changeList, baseDirectory, outputDirectory, templateDirectory);
 
@@ -415,6 +427,7 @@ namespace Microsoft.DocAsCode.SubCommands
                     }
                     p.FileEnumerable = en.ToArray();
                 }
+
                 //using (new LoggerPhaseScope("Glob", LogLevel.Info))
                 //{
                 //    p.Files = GetFileCollectionFromFileMapping(

@@ -7,6 +7,7 @@ namespace Microsoft.DocAsCode.Build.TableOfContents
     {
         None,
         Markdown,
-        Yaml
+        Yaml,
+        Json
     }
 }

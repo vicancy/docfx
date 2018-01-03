@@ -11,7 +11,10 @@ namespace Microsoft.Docs.Build
     using System.Runtime.InteropServices;
     using System.Text;
     using System.Threading.Tasks;
+    using Microsoft.DocAsCode;
+    using Microsoft.DocAsCode.Build.Engine;
     using Microsoft.DocAsCode.Common;
+    using Microsoft.DocAsCode.SubCommands;
     using Microsoft.Docs.BuildCore;
     using Newtonsoft.Json.Linq;
 
@@ -21,6 +24,48 @@ namespace Microsoft.Docs.Build
         {
             new JObject { ["output"] = new JObject { ["stable"] = false } }
         };
+
+        enum DocumentType
+        {
+            MREF,
+            TOC,
+            MD
+        }
+        private static async Task Build(string file, DocumentType type, string basedir)
+        {
+            string srcFile ;
+            if (type == DocumentType.TOC)
+            {
+                // TODO: use glob for file naming "(filewithoutextension.*)"
+                // use file mapping if target folder changes
+                srcFile = Path.ChangeExtension(file, ".json");
+            }
+            else if (type == DocumentType.MREF)
+            {
+                srcFile = file + ".json";
+            }
+            else
+            {
+                srcFile = file;
+            }
+
+            if (GloballySharedContext.Engine != null)
+            {
+                var fc = new FileCollection(basedir);
+                fc.Add(DocAsCode.Plugins.DocumentType.Article, new string[] { srcFile });
+
+                await GloballySharedContext.Engine.BuildInscope(fc.EnumerateFiles(), fc, 1);
+            }
+            else
+            {
+                var option = new BuildCommandOptions()
+                {
+                    ChangesFile = srcFile,
+                };
+
+                new BuildCommand(option).Exec(new DocAsCode.Plugins.SubCommandRunningContext());
+            }
+        }
 
         public static async Task Run(string docsetPath, params JObject[] configOverride)
         {
@@ -40,33 +85,45 @@ namespace Microsoft.Docs.Build
                 // read html mapping from context?
                 Debug.Assert(sitePath.StartsWith("docs/"));
                 var filePath = sitePath.Substring("docs/".Length);
+
                 string extension;
                 bool dr = true;
                 if (sitePath.EndsWith("toc.json", StringComparison.OrdinalIgnoreCase))
                 {
                     extension = "";
                     dr = false;
+                    var outputPath = Path.Combine(docsetPath, filePath) + extension;
+                    if (!File.Exists(outputPath))
+                    {
+                        await Build(filePath, DocumentType.TOC, docsetPath);
+                    }
                 }
                 else
                 {
-                   extension = ".raw.page.json";
+                    extension = ".raw.page.json";
+                    var outputPath = Path.Combine(docsetPath, filePath) + extension;
+                    if (!File.Exists(outputPath))
+                    {
+                        await Build(filePath, DocumentType.MREF, docsetPath);
+                    }
                 }
-
-                var outputPath = Path.Combine(docsetPath, filePath) + extension;
-                if (!File.Exists(outputPath))
                 {
-                    Logger.LogError("Unable to find " + outputPath);
-                    return (Stream.Null, false);
+                    var outputPath = Path.Combine(docsetPath, filePath) + extension;
+                    if (!File.Exists(outputPath))
+                    {
+                        Logger.LogError("Unable to find " + outputPath);
+                        return (Stream.Null, false);
+                    }
+                    Logger.LogInfo("Loading " + outputPath);
+                    // File.OpenRead(outputPath)
+                    var stream = new MemoryStream(Encoding.UTF8.GetBytes(File.ReadAllText(outputPath)));
+                    return (stream, dr);
                 }
-                Logger.LogInfo("Loading " + outputPath);
-                // File.OpenRead(outputPath)
-                var stream = new MemoryStream(Encoding.UTF8.GetBytes(File.ReadAllText(outputPath)));
-                return (stream, dr);
             }
 
             async Task<Stream> ReadTemplate(string sitePath)
             {
-                var templatePath = Path.Combine(@"E:\Repo2\docs\_themes", sitePath);
+                var templatePath = Path.Combine(docsetPath, "../_themes", sitePath);
                 if (!File.Exists(templatePath))
                 {
                     Logger.LogError("Unable to find " + templatePath);

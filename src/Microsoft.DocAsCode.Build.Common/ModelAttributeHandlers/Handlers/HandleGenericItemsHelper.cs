@@ -138,12 +138,19 @@ namespace Microsoft.DocAsCode.Build.Common
 
             public EnumerateIDictionaryItems(IDictionary<TKey, TValue> dict)
             {
-                _enumerateItems = new EnumerateIEnumerableItems<TValue>(dict.Values);
+                try
+                {
+                    _enumerateItems = new EnumerateIEnumerableItems<TValue>(dict.Values);
+                }
+                catch
+                {
+                    _enumerateItems = null;
+                }
             }
 
             public void Handle(Func<object, object> enumerate)
             {
-                _enumerateItems.Handle(s => (TValue)enumerate(s));
+                _enumerateItems?.Handle(s => (TValue)enumerate(s));
             }
         }
 
