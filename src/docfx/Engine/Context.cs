@@ -28,18 +28,18 @@ namespace Microsoft.DocAsCode
         /// <summary>
         /// File to BuildStep mapping
         /// </summary>
-        public ConcurrentDictionary<string, IBuildStep> FileStepMapping { get; } = new ConcurrentDictionary<string, IBuildStep>();
+        public ConcurrentDictionary<string, IBuildStep> FileStepMapping { get; } = new ConcurrentDictionary<string, IBuildStep>(StringComparer.OrdinalIgnoreCase);
          /// <summary>
         /// UID-Path mapping, path is always start with ~
         /// </summary>
-        public Dictionary<string, HashSet<string>> PossibleUidMapping { get; } = new Dictionary<string, HashSet<string>>();
+        public Dictionary<string, HashSet<string>> PossibleUidMapping { get; } = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// File Source to Target mapping, path is always start with ~
         /// </summary>
-        public ConcurrentDictionary<string, FileAndType> FileMapping { get; } = new ConcurrentDictionary<string, FileAndType>();
+        public ConcurrentDictionary<string, FileAndType> FileMapping { get; } = new ConcurrentDictionary<string, FileAndType>(StringComparer.OrdinalIgnoreCase);
 
-        public ConcurrentDictionary<string, FileAndType> Tocs { get; } = new ConcurrentDictionary<string, FileAndType>();
+        public ConcurrentDictionary<string, FileAndType> Tocs { get; } = new ConcurrentDictionary<string, FileAndType>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Save the files that are unable to be resolved by any processor
@@ -51,7 +51,7 @@ namespace Microsoft.DocAsCode
         /// <summary>
         /// Record file to possible toc mapping
         /// </summary>
-        public ConcurrentDictionary<string, ConcurrentBag<PossibleToc>> FilePossibleTocMapping { get; } = new ConcurrentDictionary<string, ConcurrentBag<PossibleToc>>();
+        public ConcurrentDictionary<string, ConcurrentBag<PossibleToc>> FilePossibleTocMapping { get; } = new ConcurrentDictionary<string, ConcurrentBag<PossibleToc>>(StringComparer.OrdinalIgnoreCase);
     }
 
     internal class PossibleToc

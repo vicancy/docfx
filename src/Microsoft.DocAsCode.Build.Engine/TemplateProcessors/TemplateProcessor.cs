@@ -101,7 +101,13 @@ namespace Microsoft.DocAsCode.Build.Engine
         {
             public string GenerateHref(IFileLinkInfo href)
             {
-                return Path.ChangeExtension(href.Href, string.Empty);
+                var i = href.Href?.LastIndexOf('.');
+                if (i.HasValue && i.Value > -1)
+                {
+                    return href.Href.Substring(0, i.Value);
+                }
+
+                return href.Href;
             }
         }
 

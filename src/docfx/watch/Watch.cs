@@ -123,7 +123,8 @@ namespace Microsoft.Docs.Build
 
             async Task<Stream> ReadTemplate(string sitePath)
             {
-                var templatePath = Path.Combine(docsetPath, "../_themes", sitePath);
+                var home = Path.GetDirectoryName(docsetPath);
+                var templatePath = Path.Combine(home, "_themes", sitePath);
                 if (!File.Exists(templatePath))
                 {
                     Logger.LogError("Unable to find " + templatePath);

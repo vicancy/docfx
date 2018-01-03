@@ -63,7 +63,9 @@ namespace Microsoft.DocAsCode.SubCommands
             if (Config?.Serve ?? false)
             {
                 ServeCommand.Serve(outputFolder, Config.Host, Config.Port);
+                ConsoleUtility.WriteLine("Open and preview http://localhost:56789/docs/api_json/System.String", ConsoleColor.Green);
             }
+
             EnvironmentContext.Clean();
         }
 
