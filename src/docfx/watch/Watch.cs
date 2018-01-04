@@ -92,8 +92,6 @@ namespace Microsoft.Docs.Build
                 {
                     extension = "";
                     dr = false;
-                    var outputPath = Path.Combine(docsetPath, filePath) + extension;
-                    if (!File.Exists(outputPath))
                     {
                         await Build(filePath, DocumentType.TOC, docsetPath);
                     }
@@ -101,8 +99,6 @@ namespace Microsoft.Docs.Build
                 else
                 {
                     extension = ".raw.page.json";
-                    var outputPath = Path.Combine(docsetPath, filePath) + extension;
-                    if (!File.Exists(outputPath))
                     {
                         await Build(filePath, DocumentType.MREF, docsetPath);
                     }
@@ -132,18 +128,9 @@ namespace Microsoft.Docs.Build
                 }
 
                 Logger.LogInfo("Loading " + templatePath);
+                ConsoleUtility.WriteLine("Open and preview http://localhost:56789/docs/api_json/System.String", ConsoleColor.Green);
+
                 return File.Exists(templatePath) ? File.OpenRead(templatePath) : null;
-            }
-
-            Func<string> WriteOutput(string path, string content)
-            {
-                output.TryAdd(path, (null, content));
-                return () => output[path].content;
-            }
-
-            void CopyOutput(string src, string dest)
-            {
-                output.TryAdd(dest, (src, null));
             }
         }
 
@@ -151,9 +138,9 @@ namespace Microsoft.Docs.Build
         {
             var port = 56789;
             var name = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "App.exe" : "App";
-            var exeDir = @"E:\Repo1\ops-cli\bin\win7-x64\web";
+            var exeDir = @"C:\repos\ops-cli\bin\win7-x64\web";
             var exe = Path.Combine(exeDir, name);
-            var serverDir = @"E:\Repo1\ops-cli\dep\Docs.Rendering\Source\App";
+            var serverDir = @"C:\repos\ops-cli\dep\Docs.Rendering\Source\App";
             var serverArgs = "run --no-launch-profile --no-build --no-restore";
             var psi = File.Exists(exe)
                 ? new ProcessStartInfo { FileName = exe, WorkingDirectory = exeDir, }
@@ -167,6 +154,7 @@ namespace Microsoft.Docs.Build
 
             var tcs = new TaskCompletionSource<int>();
             var process = Process.Start(psi);
+            ConsoleUtility.WriteLine("Open and preview http://localhost:56789/docs/api_json/System.String", ConsoleColor.Green);
             process.EnableRaisingEvents = true;
             process.Exited += (a, b) => tcs.TrySetResult(process.ExitCode);
             return tcs.Task;

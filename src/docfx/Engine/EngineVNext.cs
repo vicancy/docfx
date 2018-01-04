@@ -14,6 +14,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -211,7 +212,7 @@ namespace Microsoft.DocAsCode
                     file.DestUrl = Path.ChangeExtension(file.File, _config.pageUrlExtension);
                     if (_allowedYaml.Contains(Path.GetExtension(file.File)))
                     {
-                        uids = QuickScanUidsInJson(file.File).ToArray();
+                        uids = await QuickScanUidsInJsonAsync(file.File);
                     }
                 }
             }
@@ -285,26 +286,45 @@ namespace Microsoft.DocAsCode
             return uids;
         }
 
-        private static readonly Regex UidJsonMatcher = new Regex(@"^\s*""(uid|overload)"": ""(.*)"",$", RegexOptions.Compiled);
+        private static readonly Regex UidJsonMatcher = new Regex(@"""uid"": ""(.*)"",$", RegexOptions.Compiled);
 
-        private IEnumerable<string> QuickScanUidsInJson(string path)
+        private Task<List<string>> QuickScanUidsInJsonAsync(string path)
         {
-            using (var reader = File.OpenText(path))
-            {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    if (line.StartsWith("  \"references\":"))
-                    {
-                        yield break;
-                    }
+            return Task.Run(()=> QuickScanUidsInJson(path));
+        }
 
-                    var match = UidJsonMatcher.Match(line);
-                    if (match.Success)
+        private List<string> QuickScanUidsInJson(string path)
+        {
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096
+                , FileOptions.SequentialScan))
+            {
+                var uids = new List<string>();
+                using (var sr = new StreamReader(fs))
+                {
+                    string line;
+                    while ((line = sr.ReadLine()) != null)
                     {
-                        yield return match.Groups[2].Value;
+                        var text = line.TrimStart();
+                        if (text.StartsWith("\"references\":"))
+                        {
+                            break;
+                        }
+                        var uidStr = "\"uid\":";
+                        if (text.StartsWith(uidStr))
+                        {
+                            var trimmed = text.Substring(uidStr.Length).Trim(' ', ',', '"');
+                            uids.Add(trimmed);
+                        }
+                        var overloadStr = "\"overload\":";
+                        if (text.StartsWith(overloadStr))
+                        {
+                            var trimmed = text.Substring(overloadStr.Length).Trim(' ', ',', '"');
+                            uids.Add(trimmed);
+                        }
                     }
                 }
+
+                return uids;
             }
         }
     }
