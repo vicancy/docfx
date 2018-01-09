@@ -42,6 +42,7 @@ namespace Microsoft.DocAsCode
         IDocumentProcessor _processor;
         private FileModel _fm;
         private TaskRegister _tr = new TaskRegister();
+        public bool Completed { get; private set; }
 
         public ConceptualFileBuild(FileAndType file, Config config, IDocumentProcessor processor)
         {

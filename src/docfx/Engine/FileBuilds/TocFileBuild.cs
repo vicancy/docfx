@@ -31,6 +31,7 @@ namespace Microsoft.DocAsCode
         private FileModel _fm;
         private TocItemViewModel Content;
         private TaskRegister _tr = new TaskRegister();
+        public bool Completed { get; private set; }
 
         public TocFileBuild(FileAndType file, Config config, IDocumentProcessor processor)
         {
@@ -118,9 +119,12 @@ namespace Microsoft.DocAsCode
                            if (result != null)
                            {
                                // apply template
-                               var manifest = _config.TemplateProcessor.ProcessOne(_fm, result.DocumentType, _config.ApplyTemplateSettings);
-                               context.ManifestItems.Add(manifest);
+                               //var manifest = _config.TemplateProcessor.ProcessOne(_fm, result.DocumentType, _config.ApplyTemplateSettings);
+                               //context.ManifestItems.Add(manifest);
                            }
+                           Content = null;
+                           _fm = null;
+                           Completed = true;
                        }
                    });
         }

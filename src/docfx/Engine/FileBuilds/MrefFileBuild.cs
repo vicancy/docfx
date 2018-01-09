@@ -33,6 +33,7 @@ namespace Microsoft.DocAsCode
         private PageViewModel _model;
 
         private RelativePath _destFile ;
+        public bool Completed { get; private set; }
 
         public MrefFileBuild(FileAndType file, Config config, IDocumentProcessor processor)
         {
@@ -261,7 +262,7 @@ namespace Microsoft.DocAsCode
                            {
                                await Task.WhenAll(
                                linkToUids.SelectMany(s => GetUids(s, context)).Select(s => Utility.CreateOrGetOneTask(context.FileMapping[s], context, _config).ExportXrefMap(context))
-                               .Concat(new Task[] { Task.FromResult(CalcNearestToc(context)) })
+                               .Concat(new Task[] { CalcNearestToc(context) })
                                );
                            }
                            using (new LoggerPhaseScope("CalcMetadata"))
@@ -276,9 +277,12 @@ namespace Microsoft.DocAsCode
                            // apply template
                            using (new LoggerPhaseScope("ApplyTemplate"))
                            {
-                               var manifest = _config.TemplateProcessor.ProcessOne(_fm, "ManagedReference", _config.ApplyTemplateSettings);
-                               context.ManifestItems.Add(manifest);
+                               //var manifest = _config.TemplateProcessor.ProcessOne(_fm, "ManagedReference", _config.ApplyTemplateSettings);
+                               //context.ManifestItems.Add(manifest);
                            }
+                           _model = null;
+                           _fm = null;
+                           Completed = true;
                        }
                    });
         }

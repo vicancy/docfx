@@ -31,6 +31,7 @@ namespace Microsoft.DocAsCode
 
     internal class EngineVNext
     {
+        private const int TotalCount = 16566;
         private readonly Config _config;
         private static HashSet<string> _allowedToc = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "toc.md", "toc.yml", "toc.yaml", "toc.markdown", "toc.json" };
         private static HashSet<string> _allowedYaml = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".yml", ".yaml", ".json"};
@@ -41,10 +42,10 @@ namespace Microsoft.DocAsCode
 
         private Context _context = new Context();
 
-        public async Task BuildInscope(IEnumerable<FileAndType> globalScopeFiles, FileCollection inScopeFiles, int count)
+        public async Task BuildInscope(IList<FileAndType> globalScopeFiles, FileCollection inScopeFiles, int count)
         {
             var context = _context;
-
+            // globalScopeFiles = globalScopeFiles.Take(TotalCount).ToList();
             // 1. Get files, quick scan
             using (new LoggerPhaseScope("QuickScan", LogLevel.Info))
             {
@@ -55,23 +56,74 @@ namespace Microsoft.DocAsCode
 
             using (new LoggerPhaseScope("Build", LogLevel.Info))
             {
-                await Task.WhenAll((inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values).ForEachInParallelAsync(s =>
+                var files = inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values;
+                var executionCount = files.Count;
+                int bits = 15;
+                int chunkLength = 1 << bits ;
+                int chunkCount = (executionCount >> bits) + 1;
+                for (var i = 0; i < chunkCount; i++)
                 {
-                    var step = Utility.CreateOrGetOneTask(s, context, _config);
+                    await BuildInScopeChunk(files.Skip(i << bits).Take(chunkLength), context);
 
-                    return step.Build(context);
+                    //if (i % 64 == 0)
+                    //{
+                    //    Console.CursorLeft = 0;
+                    //    var cp = Process.GetCurrentProcess();
+                    //    long mem = cp.WorkingSet64 >> 20;
+                    //    Console.Write($"{(i << bits) + chunkLength}/{files.Count}," +
+                    //        $" {context.FileStepMapping.Count} tasks registered," +
+                    //        $" {context.FileStepMapping.Count(s => s.Value.Completed)} tasks completed," +
+                    //        $" memory: {mem} MB");
+                    //}
+                }
 
-                }, 64));
+                //await Task.WhenAll((inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values).ForEachInParallelAsync(s =>
+                //{
+                //    var step = Utility.CreateOrGetOneTask(s, context, _config);
+
+                //    return step.Build(context);
+
+                //}, 64));
                 Logger.LogInfo($"{context.FileStepMapping.Count} files task mapping executed.");
             }
         }
 
-        public async Task Build(IEnumerable<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder, int count)
+
+        private async Task BuildInScopeChunk(IEnumerable<FileAndType> chunks, Context context)
+        {
+            int count = 0;
+            await Task.WhenAll(chunks.Select(async s =>
+            {
+                var step = Utility.CreateOrGetOneTask(s, context, _config);
+
+                await step.Build(context);
+                Interlocked.Increment(ref count);
+            }).Concat(new Task[]{ Task.Run(()=>
+            {
+                while (count < TotalCount)
+                {
+                    {
+                        Console.CursorLeft = 0;
+                        var cp = Process.GetCurrentProcess();
+                        var tc = cp.Threads.Count;
+                        long mem = cp.WorkingSet64 >> 20;
+                        Console.Write($"{count}/{TotalCount} files built," +
+                            $" {context.FileStepMapping.Count} tasks registered," +
+                            $" {context.FileStepMapping.Count(s => s.Value.Completed)} tasks completed," +
+                            $" memory: {mem} MB, {tc} threads.");
+                    }
+                    Thread.Sleep(3000);
+                }
+            }) }));
+        }
+
+        public async Task Build(IList<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder, int count)
         {
             GloballySharedContext.Engine = this;
             var context = _context;
 
-            await BuildInscope(globalScopeFiles, inScopeFiles, count);
+            using (new LoggerPhaseScope("InScope", LogLevel.Error))
+                await BuildInscope(globalScopeFiles, inScopeFiles, count);
 
             using (new LoggerPhaseScope("DumpContext", LogLevel.Info))
             {
@@ -334,6 +386,8 @@ namespace Microsoft.DocAsCode
         Task Build(Context context);
         Task Load(Context context);
         Task ExportXrefMap(Context context);
+
+        bool Completed { get; }
     }
 
     internal class IdleStep : IBuildStep
@@ -353,5 +407,7 @@ namespace Microsoft.DocAsCode
         {
             return Task.CompletedTask;
         }
+
+        public bool Completed => true;
     }
 }

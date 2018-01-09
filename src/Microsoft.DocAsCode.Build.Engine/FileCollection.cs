@@ -97,9 +97,9 @@ namespace Microsoft.DocAsCode.Build.Engine
             return result;
         }
 
-        public IEnumerable<FileAndType> EnumerateFiles()
+        public IList<FileAndType> EnumerateFiles()
         {
-            return _files.Distinct();
+            return _files;
         }
     }
 }
