@@ -25,33 +25,36 @@ namespace Microsoft.DocAsCode
     {
         public ConcurrentBag<ManifestItem> ManifestItems { get; } = new ConcurrentBag<ManifestItem>();
 
-        /// <summary>
-        /// File to BuildStep mapping
-        /// </summary>
-        public ConcurrentDictionary<string, IBuildStep> FileStepMapping { get; } = new ConcurrentDictionary<string, IBuildStep>(StringComparer.OrdinalIgnoreCase);
-         /// <summary>
-        /// UID-Path mapping, path is always start with ~
-        /// </summary>
-        public Dictionary<string, HashSet<string>> PossibleUidMapping { get; } = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// File Source to Target mapping, path is always start with ~
-        /// </summary>
-        public ConcurrentDictionary<string, FileAndType> FileMapping { get; } = new ConcurrentDictionary<string, FileAndType>(StringComparer.OrdinalIgnoreCase);
-
-        public ConcurrentDictionary<string, FileAndType> Tocs { get; } = new ConcurrentDictionary<string, FileAndType>(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// Save the files that are unable to be resolved by any processor
-        /// </summary>
-        public ConcurrentBag<FileAndType> UnhandledItems { get; } = new ConcurrentBag<FileAndType>();
-
         public ConcurrentDictionary<string, XRefSpec> XrefSpecMapping { get; } = new ConcurrentDictionary<string, XRefSpec>();
 
         /// <summary>
         /// Record file to possible toc mapping
         /// </summary>
         public ConcurrentDictionary<string, ConcurrentBag<PossibleToc>> FilePossibleTocMapping { get; } = new ConcurrentDictionary<string, ConcurrentBag<PossibleToc>>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// UID-Path mapping, path is always start with ~
+        /// </summary>
+        public IReadOnlyDictionary<string, HashSet<string>> PossibleUidMapping { get; }
+
+        /// <summary>
+        /// File Source to Target mapping, path is always start with ~
+        /// </summary>
+        public IReadOnlyDictionary<string, FileAndType> FileMapping { get; }
+
+        public IReadOnlyDictionary<string, FileAndType> Tocs { get; }
+
+        public Context(IReadOnlyDictionary<string, FileAndType> fileMapping, IReadOnlyDictionary<string, FileAndType> tocs, IReadOnlyDictionary<string, HashSet<string>> possibleUidMappings)
+        {
+            Tocs = tocs;
+            FileMapping = fileMapping;
+            PossibleUidMapping = possibleUidMappings;
+        }
+
+        public void RegisterToc()
+        {
+
+        }
     }
 
     internal class PossibleToc

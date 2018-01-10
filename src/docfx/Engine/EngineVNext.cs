@@ -31,7 +31,7 @@ namespace Microsoft.DocAsCode
 
     internal class EngineVNext
     {
-        private const int TotalCount = 16566;
+        private int TotalCount;
         private readonly Config _config;
         private static HashSet<string> _allowedToc = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "toc.md", "toc.yml", "toc.yaml", "toc.markdown", "toc.json" };
         private static HashSet<string> _allowedYaml = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".yml", ".yaml", ".json"};
@@ -40,23 +40,39 @@ namespace Microsoft.DocAsCode
             _config = config;
         }
 
-        private Context _context = new Context();
-
-        public async Task BuildInscope(IList<FileAndType> globalScopeFiles, FileCollection inScopeFiles, int count)
+        public async Task Build(IList<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder, int count)
         {
-            var context = _context;
-            // globalScopeFiles = globalScopeFiles.Take(TotalCount).ToList();
+            GloballySharedContext.Engine = this;
+
+            Context context;
+            using (new LoggerPhaseScope("InScopeBuild", LogLevel.Info))
+            {
+                context = await BuildInscope(globalScopeFiles, inScopeFiles, count);
+            }
+
+            using (new LoggerPhaseScope("DumpContext", LogLevel.Info))
+            {
+                var path = outputFolder + "/context.json";
+                JsonUtility.Serialize(path, context, Formatting.Indented);
+                Logger.LogInfo($"Context saved to {path}.");
+            }
+        }
+
+        public async Task<Context> BuildInscope(IList<FileAndType> globalScopeFiles, FileCollection inScopeFiles, int count)
+        {
+            Context context;
             // 1. Get files, quick scan
             using (new LoggerPhaseScope("QuickScan", LogLevel.Info))
             {
                 Logger.LogInfo($"Quick scanning {count} files.");
-                await QuickScanAsync(globalScopeFiles, context);
+                context = await QuickScanAsync(globalScopeFiles);
                 Logger.LogInfo($"{context.FileMapping.Count} files mapping created.");
             }
 
             using (new LoggerPhaseScope("Build", LogLevel.Info))
             {
-                var files = inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values;
+                var files = inScopeFiles?.EnumerateFiles().Select(s => context.FileMapping[s.Key]).ToList() ?? context.FileMapping.Values.ToList();
+                TotalCount = files.Count;
                 var executionCount = files.Count;
                 int bits = 15;
                 int chunkLength = 1 << bits ;
@@ -65,38 +81,19 @@ namespace Microsoft.DocAsCode
                 {
                     await BuildInScopeChunk(files.Skip(i << bits).Take(chunkLength), context);
 
-                    //if (i % 64 == 0)
-                    //{
-                    //    Console.CursorLeft = 0;
-                    //    var cp = Process.GetCurrentProcess();
-                    //    long mem = cp.WorkingSet64 >> 20;
-                    //    Console.Write($"{(i << bits) + chunkLength}/{files.Count}," +
-                    //        $" {context.FileStepMapping.Count} tasks registered," +
-                    //        $" {context.FileStepMapping.Count(s => s.Value.Completed)} tasks completed," +
-                    //        $" memory: {mem} MB");
-                    //}
                 }
-
-                //await Task.WhenAll((inScopeFiles?.EnumerateFiles() ?? context.FileMapping.Values).ForEachInParallelAsync(s =>
-                //{
-                //    var step = Utility.CreateOrGetOneTask(s, context, _config);
-
-                //    return step.Build(context);
-
-                //}, 64));
-                Logger.LogInfo($"{context.FileStepMapping.Count} files task mapping executed.");
             }
-        }
 
+            return context;
+        }
 
         private async Task BuildInScopeChunk(IEnumerable<FileAndType> chunks, Context context)
         {
             int count = 0;
+            var pipeline = new PipelineManager(_config);
             await Task.WhenAll(chunks.Select(async s =>
             {
-                var step = Utility.CreateOrGetOneTask(s, context, _config);
-
-                await step.Build(context);
+                await pipeline.Run(s, context);
                 Interlocked.Increment(ref count);
             }).Concat(new Task[]{ Task.Run(()=>
             {
@@ -107,9 +104,7 @@ namespace Microsoft.DocAsCode
                         var cp = Process.GetCurrentProcess();
                         var tc = cp.Threads.Count;
                         long mem = cp.WorkingSet64 >> 20;
-                        Console.Write($"{count}/{TotalCount} files built," +
-                            $" {context.FileStepMapping.Count} tasks registered," +
-                            $" {context.FileStepMapping.Count(s => s.Value.Completed)} tasks completed," +
+                        Console.WriteLine($"{count}/{TotalCount} files built," +
                             $" memory: {mem} MB, {tc} threads.");
                     }
                     Thread.Sleep(3000);
@@ -117,128 +112,34 @@ namespace Microsoft.DocAsCode
             }) }));
         }
 
-        public async Task Build(IList<FileAndType> globalScopeFiles, FileCollection inScopeFiles, string outputFolder, int count)
+        private async Task<Context> QuickScanAsync(IEnumerable<FileAndType> files)
         {
-            GloballySharedContext.Engine = this;
-            var context = _context;
-
-            using (new LoggerPhaseScope("InScope", LogLevel.Error))
-                await BuildInscope(globalScopeFiles, inScopeFiles, count);
-
-            using (new LoggerPhaseScope("DumpContext", LogLevel.Info))
-            {
-                var path = outputFolder + "/context.json";
-                JsonUtility.Serialize(path, context, Formatting.Indented);
-                Logger.LogInfo($"Context saved to {path}.");
-            }
-
-            // _config.TemplateProcessor.ProcessDependencies(new HashSet<string> { "Conceptual" }, _config.ApplyTemplateSettings);
-        }
-
-        private async Task QuickScan(IEnumerable<FileAndType> files, Context context)
-        {
-            foreach(var f in files)
-            {
-                var uids = OneFileQuickScan(f);
-                if (f.IsToc)
-                {
-                    context.Tocs.TryAdd(f.Key, f);
-                }
-                context.FileMapping[f.Key] = f;
-                foreach (var uid in uids)
-                {
-                    if (context.PossibleUidMapping.TryGetValue(uid, out var list))
-                    {
-                        list.Add(f.Key);
-                    }
-                    else
-                    {
-                        context.PossibleUidMapping[uid] = new HashSet<string> { f.Key };
-                    }
-                }
-            }
-            // await files.EnumerateFiles().ForEachInParallelAsync(s => OneFileQuickScan(s, context));
-        }
-
-        private async Task QuickScanAsync(IEnumerable<FileAndType> files, Context context)
-        {
-            var results = await files.SelectInParallelAsync(OneJsonFileQuickScanAsync, 16);
+            var results = await files.SelectInParallelAsync(OneJsonFileQuickScanAsync);
+            var fms = new Dictionary<string, FileAndType>(FilePathComparer.OSPlatformSensitiveStringComparer);
+            var tocs = new Dictionary<string, FileAndType>(FilePathComparer.OSPlatformSensitiveStringComparer);
+            var pums = new Dictionary<string, HashSet<string>>(FilePathComparer.OSPlatformSensitiveStringComparer);
             foreach (var r in results)
             {
                 var f = r.File;
                 if (r.File.IsToc)
                 {
-                    context.Tocs[r.File.Key] = r.File;
+                    tocs[r.File.Key] = r.File;
                 }
-                context.FileMapping[r.File.Key] = r.File;
+                fms[r.File.Key] = r.File;
                 foreach (var uid in r.Uids)
                 {
-                    if (context.PossibleUidMapping.TryGetValue(uid, out var list))
+                    if (pums.TryGetValue(uid, out var list))
                     {
                         list.Add(f.Key);
                     }
                     else
                     {
-                        context.PossibleUidMapping[uid] = new HashSet<string> { f.Key };
+                        pums[uid] = new HashSet<string> { f.Key };
                     }
                 }
             }
-        }
 
-        private void OneFileQuickScanTest(FileAndType file)
-        {
-            IEnumerable<string> uids = Enumerable.Empty<string>();
-            if (file.Type == DocumentType.Article)
-            {
-                if (_allowedToc.Contains(Path.GetFileName(file.File)))
-                {
-                    file.DestFile = Path.ChangeExtension(file.File, ".json");
-                    file.DestUrl = file.DestFile;
-                    file.IsToc = true;
-                }
-                else
-                {
-                    file.DestFile = Path.ChangeExtension(file.File, _config.pageFileExtension);
-                    file.DestUrl = Path.ChangeExtension(file.File, _config.pageUrlExtension);
-                    if (_allowedYaml.Contains(Path.GetExtension(file.File)))
-                    {
-                        uids = QuickScanUids(file.File);
-                    }
-                }
-            }
-            else if (file.Type == DocumentType.Resource)
-            {
-                file.DestFile = file.File;
-            }
-        }
-
-        private IEnumerable<string> OneFileQuickScan(FileAndType file)
-        {
-            IEnumerable<string> uids = Enumerable.Empty<string>();
-            if (file.Type == DocumentType.Article)
-            {
-                if (_allowedToc.Contains(Path.GetFileName(file.File)))
-                {
-                    file.DestFile = Path.ChangeExtension(file.File, ".json");
-                    file.DestUrl = file.DestFile;
-                    file.IsToc = true;
-                }
-                else
-                {
-                    file.DestFile = Path.ChangeExtension(file.File, _config.pageFileExtension);
-                    file.DestUrl = Path.ChangeExtension(file.File, _config.pageUrlExtension);
-                    if (_allowedYaml.Contains(Path.GetExtension(file.File)))
-                    {
-                        uids = QuickScanUids(file.File);
-                    }
-                }
-            }
-            else if (file.Type == DocumentType.Resource)
-            {
-                file.DestFile = file.File;
-            }
-
-            return uids;
+            return new Context(fms, tocs, pums);
         }
 
         class FileScanResult

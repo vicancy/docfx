@@ -24,7 +24,7 @@ namespace Microsoft.DocAsCode
 
     internal class Utility
     {
-        private static readonly IEnumerable<IDocumentProcessor> processors = new IDocumentProcessor[]
+        public static readonly IEnumerable<IDocumentProcessor> processors = new IDocumentProcessor[]
         {
             new ConceptualDocumentProcessor{
                 BuildSteps = new IDocumentBuildStep[]
@@ -75,74 +75,6 @@ namespace Microsoft.DocAsCode
                 }
             }
             return result.ToImmutableDictionary();
-        }
-
-        public static IBuildStep CreateOrGetOneTask(FileAndType file, Context context, Config config)
-        {
-            // Use the stored one from fileMapping
-
-            if (!context.FileMapping.TryGetValue(file.Key, out file))
-            {
-                Logger.LogError($"{file.Key} is not in global scope");
-                throw new DocfxException(file.Key);
-            }
-
-            if (context.FileStepMapping.TryGetValue(file.Key, out var step))
-            {
-                return step;
-            }
-
-            var processor = (from p in processors
-                             let priority = p.GetProcessingPriority(file)
-                             where priority != ProcessingPriority.NotSupported
-                             group p by priority into ps
-                             orderby ps.Key descending
-                             select ps.ToList()).FirstOrDefault().FirstOrDefault();
-            if (processor == null)
-            {
-                context.UnhandledItems.Add(file);
-                return IdleStep.Default;
-            }
-            else if (processor is TocDocumentProcessor)
-            {
-                step = new TocFileBuild(file, config, processor);
-            }
-            else if (processor is ConceptualDocumentProcessor)
-            {
-                step = new ConceptualFileBuild(file, config, processor);
-            }
-            else
-            {
-                step = new MrefFileBuild(file, config, processor);
-            }
-
-            context.FileStepMapping.TryAdd(file.Key, step);
-            return step;
-        }
-
-        public static bool IsSupportedFile(string file)
-        {
-            var fileType = GetTocFileType(file);
-            if (fileType == TocFileType.Markdown || fileType == TocFileType.Yaml)
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        public static bool IsSupportedRelativeHref(string href)
-        {
-            var hrefType = GetHrefType(href);
-            return IsSupportedRelativeHref(hrefType);
-        }
-
-        public static bool IsSupportedRelativeHref(HrefType hrefType)
-        {
-            // TocFile href type can happen when homepage is set to toc.yml explicitly
-            return hrefType == HrefType.RelativeFile
-                || hrefType == HrefType.YamlTocFile
-                || hrefType == HrefType.MarkdownTocFile;
         }
 
         public static HrefType GetHrefType(string href)
