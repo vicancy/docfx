@@ -104,7 +104,8 @@ namespace Microsoft.Docs.Build
                     }
                 }
                 {
-                    var outputPath = Path.Combine(docsetPath, filePath) + extension;
+                    var folder = configOverride[0]["output"].Value<string>();
+                    var outputPath = Path.Combine(folder, filePath) + extension;
                     if (!File.Exists(outputPath))
                     {
                         Logger.LogError("Unable to find " + outputPath);

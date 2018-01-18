@@ -123,13 +123,6 @@ namespace Microsoft.DocAsCode
 
         private void ResolveUid(TocItemViewModel item, Dictionary<string, XRefSpec> xrefs)
         {
-            var hrefType = Utility.GetHrefType(item.TopicHref);
-            if (hrefType == HrefType.RelativeFile)
-            {
-                var path = UriUtility.GetPath(item.TopicHref);
-                var relativePath = ((RelativePath)path).UrlDecode();
-            }
-
             if (item.TopicUid != null)
             {
                 if (!xrefs.TryGetValue(item.TopicUid, out var xref))
@@ -153,6 +146,18 @@ namespace Microsoft.DocAsCode
                         item.NameForVB = nameForVB;
                     }
                 }
+            }
+
+            var hrefType = Utility.GetHrefType(item.TopicHref);
+            if (hrefType == HrefType.RelativeFile)
+            {
+                var path = UriUtility.GetPath(item.TopicHref);
+                var segments = UriUtility.GetQueryStringAndFragment(path);
+                var relativePath = ((RelativePath)path).UrlDecode();
+
+                var final = Path.ChangeExtension((relativePath.RemoveWorkingFolder() - (RelativePath)_file.DestFile).UrlEncode(), null);
+
+                item.TopicHref = item.Href = final + segments;
             }
 
             if (item.Items != null)

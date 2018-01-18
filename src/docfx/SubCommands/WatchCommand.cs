@@ -15,6 +15,7 @@ namespace Microsoft.DocAsCode.SubCommands
     using global::Owin;
     using System.Threading.Tasks;
     using Microsoft.Docs.Build;
+    using Newtonsoft.Json.Linq;
 
     internal sealed class WatchCommand : ISubCommand
     {
@@ -35,48 +36,20 @@ namespace Microsoft.DocAsCode.SubCommands
 
             buildCommand.Exec(context);
 
-            var folder = EnvironmentContext.OutputDirectory;
-            Serve(folder,
-                _options.Host,
-                _options.Port.HasValue ? _options.Port.Value.ToString() : null);
-        }
-
-        public static void Serve(string folder, string host, string port)
-        {
-            if (string.IsNullOrEmpty(folder)) folder = Directory.GetCurrentDirectory();
-            folder = Path.GetFullPath(folder);
-            host = string.IsNullOrWhiteSpace(host) ? "localhost" : host;
-            port = string.IsNullOrWhiteSpace(port) ? "8080" : port;
-            var url = $"http://{host}:{port}";
-            if (!Directory.Exists(folder))
-            {
-                throw new ArgumentException("Site folder does not exist. You may need to build it first. Example: \"docfx docfx_project/docfx.json\"", nameof(folder));
-            }
-            var fileServerOptions = new FileServerOptions
-            {
-                EnableDirectoryBrowsing = true,
-                FileSystem = new PhysicalFileSystem(folder),
-            };
-
-            // Fix the issue that .JSON file is 404 when running docfx serve
-            fileServerOptions.StaticFileOptions.ServeUnknownFileTypes = true;
-
-            if (!File.Exists(Path.Combine(folder, "index.html")) && File.Exists(Path.Combine(folder, "toc.html")))
-            {
-                File.Copy(Path.Combine(folder, "toc.html"), Path.Combine(folder, "index.html"));
-            }
-
+            var folder = buildCommand.OutputDirectory;
             try
             {
                 // WebApp.Start(url, builder => builder.UseFileServer(fileServerOptions));
-                var task = Task.Run(() => Watch.Run(folder));
+                var task = Task.Run(() => Watch.Run(buildCommand.BaseDirectory, new JObject
+                {
+                    ["output"] = folder
+                }));
                 task.Wait();
-                Console.WriteLine($"Serving \"{folder}\" on {url}");
-                Console.ReadLine();
             }
-            catch (System.Reflection.TargetInvocationException)
+            catch (Exception e)
             {
-                Logger.LogError($"Error serving \"{folder}\" on {url}, check if the port is already being in use.");
+                Logger.LogError(e.Message);
+                throw;
             }
         }
     }

@@ -151,7 +151,7 @@ namespace Microsoft.DocAsCode.Build.Engine
                 try
                 {
                     var extension = template.Extension;
-                    string outputFile = item.FileWithoutExtension + extension;
+                    string outputFile = Path.Combine(_settings.OutputFolder, item.FileWithoutExtension + extension);
                     object viewModel = null;
                     try
                     {
@@ -240,7 +240,7 @@ namespace Microsoft.DocAsCode.Build.Engine
             {
                 var opsModel = ToOPSModel(model, html);
 
-                JsonUtility.Serialize(item.FileWithoutExtension + ".raw.page.json", opsModel, Newtonsoft.Json.Formatting.Indented);
+                JsonUtility.Serialize(Path.Combine(_settings.OutputFolder, item.FileWithoutExtension + ".raw.page.json"), opsModel, Newtonsoft.Json.Formatting.Indented);
             }
 
             item.Model = null;
