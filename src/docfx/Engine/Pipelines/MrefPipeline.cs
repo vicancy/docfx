@@ -23,6 +23,34 @@ using System.Threading.Tasks;
 
 namespace Microsoft.DocAsCode
 {
+    internal static class BuildPipelineExtension
+    {
+        public static Task ReportLoaded(this BuildPipeline p)
+        {
+            return p.Report(Steps.ArticleLoaded);
+        }
+
+        public static Task ReportXRefSpecs(this BuildPipeline p, IEnumerable<XRefSpec> xrefspecs)
+        {
+            return p.Report(xrefspecs);
+        }
+
+        public static async Task<IEnumerable<XRefSpec>> RequireXRefSpecs(this BuildPipeline p, Context context, IEnumerable<FileAndType> files)
+        {
+            return (await p.Require<XRefSpec[]>(context, files.Distinct().ToArray())).SelectMany(s => s);
+        }
+
+        public static Task ReportTopicSave(this BuildPipeline p)
+        {
+            return p.Report(Steps.ArticleLoaded);
+        }
+
+        public static Task RequireTopicSave(this BuildPipeline p, Context context, params FileAndType[] files)
+        {
+            return p.Require(Steps.Saved, context, files);
+        }
+    }
+
     internal class MrefPipeline
     {
         private readonly Config _config;
@@ -39,7 +67,9 @@ namespace Microsoft.DocAsCode
             Pipeline = new BuildPipeline(controller, new[]
                     {
                         Steps.ArticleLoaded, Steps.XrefmapExported, Steps.Saved
-                    }, BuildDocument);
+                    },
+                    new Type[] { typeof(XRefSpec[]) },
+                    BuildDocument);
         }
 
         private async Task BuildDocument(BuildPipeline p, Context context)
@@ -48,51 +78,60 @@ namespace Microsoft.DocAsCode
             {
                 var destFile = ((RelativePath)_file.DestFile).RemoveWorkingFolder();
 
-                using (new LoggerPhaseScope("BuildOutAllTocs"))
-                {
-                    // Wait for all toc's AST loaded
-                    await p.Require(Steps.TocLoaded, context, context.Tocs.Values.ToArray());
-                }
-
                 var mta = Utility.ApplyFileMetadata(_file.File, _config.Metadata, _config.FileMetadata);
                 var fileModel = _processor.Load(_file, mta);
                 var pageModel = (PageViewModel)fileModel.Content;
 
                 await p.Report(Steps.ArticleLoaded);
 
-                foreach (var i in pageModel.Items.SelectMany(s => GetXRefInfo(s, _file.Key, pageModel.References, destFile)))
-                {
-                    context.XrefSpecMapping[i.Uid] = i;
-                }
+                var xrefspecs = pageModel.Items.SelectMany(s => GetXRefInfo(s, _file.Key, pageModel.References, destFile)).ToArray();
 
-                await p.Report(Steps.XrefmapExported);
+                await p.ReportXRefSpecs(xrefspecs);
 
-                Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
-                BuildPhaseUtility.RunBuildSteps(
-                    _processor.BuildSteps,
-                    buildStep =>
-                    {
-                        buildStep.Build(fileModel, _config.HostService);
-                    });
-                var linkToFiles = fileModel.LinkToFiles;
-                var linkToUids = fileModel.LinkToUids;
+                var linkToUids = BuildAndExtractUidDependencies(fileModel);
 
                 // wait for the dependent uids to complete
                 using (new LoggerPhaseScope($"Dedendencies({linkToUids.Count}).ExportXrefMap", LogLevel.Info))
                 {
-                    await p.Require(Steps.XrefmapExported, context, linkToUids.SelectMany(s => GetUids(s, context)).ToArray());
+                    var files = linkToUids.SelectMany(s => GetUids(s, context));
+                    var xrefs = await p.RequireXRefSpecs(context, files);
+
+                    // for later template apply
+                    _config.DBC.XRefSpecMap = new ConcurrentDictionary<string, XRefSpec>(xrefs.Select(s => new KeyValuePair<string, XRefSpec>(s.Uid, s)));
                 }
 
                 // This one can be parallel to export xrefmap
                 using (new LoggerPhaseScope("CalcMetadata"))
                 {
-                    var nearestToc = CalcNearestToc(context, destFile.RemoveWorkingFolder(), fileModel, pageModel);
-                    // dependent on toc's build through
-                    if (nearestToc != null)
+                    // wait for toc's loaded
+
+                    // No need to if _tocRel is set
+                    if (!pageModel.Metadata.TryGetValue("_tocRel", out var val))
                     {
-                        using (new LoggerPhaseScope("BuildNearestToc"))
+                        pageModel.Metadata["_tocRel"] = null;
+                        var invertedTocMap = await p.Require<InvertedTocMap>(context, FileAndType.AllToc);
+
+                        var uids = new HashSet<string>(fileModel.Uids.Select(s => s.Name));
+
+                        using (new LoggerPhaseScope("CalcNearestToc"))
                         {
-                            await p.Require(Steps.Saved, context, context.FileMapping[nearestToc.Key]);
+                            if (invertedTocMap.TryGetValue(_file.Key, out var tocs))
+                            {
+                                var parentTocFiles = tocs.Select(s => new FileInfos(s, (RelativePath)context.FileMapping[s].DestFile));
+                                var nearestToc = GetNearestToc(parentTocFiles, destFile.RemoveWorkingFolder());
+                                if (nearestToc != null)
+                                {
+                                    pageModel.Metadata["_tocRel"] = (string)nearestToc.File.RemoveWorkingFolder().MakeRelativeTo(destFile);
+                                    Logger.LogDiagnostic($"It's calculated nearest toc is {nearestToc.Key}");
+                                    
+                                    // no need to wait for toc to go through as the client will request for the toc.json and that is the time for the toc to build
+                                    //using (new LoggerPhaseScope("BuildNearestToc"))
+                                    //{
+                                    //    // dependent on toc's build through
+                                    //    await p.RequireTopicSave(context, context.FileMapping[nearestToc.Key]);
+                                    //}
+                                }
+                            }
                         }
                     }
 
@@ -101,42 +140,31 @@ namespace Microsoft.DocAsCode
                 }
 
                 _processor.Save(fileModel);
-                _config.DBC.XRefSpecMap = context.XrefSpecMapping;
 
                 // apply template
                 using (new LoggerPhaseScope("ApplyTemplate"))
                 {
-                    //var manifest = _config.TemplateProcessor.ProcessOne(fileModel, "ManagedReference", _config.ApplyTemplateSettings);
-                    //context.ManifestItems.Add(manifest);
+                    var manifest = _config.TemplateProcessor.ProcessOne(fileModel, "ManagedReference", _config.ApplyTemplateSettings);
+                    context.ManifestItems.Add(manifest);
                 }
 
-                await p.Report(Steps.Saved);
+                await p.ReportTopicSave();
             }
         }
 
-        private FileInfos CalcNearestToc(Context context, RelativePath destFile, FileModel fm, PageViewModel model)
+
+        private IReadOnlyCollection<string> BuildAndExtractUidDependencies(FileModel fileModel)
         {
-            var uids = new HashSet<string>(fm.Uids.Select(s => s.Name));
-
-            // get nearest toc
-            FileInfos nearestToc = null;
-            model.Metadata["_tocRel"] = null;
-
-            using (new LoggerPhaseScope("CalcNearestToc"))
-            {
-                if (context.FilePossibleTocMapping.TryGetValue(_file.Key, out var tocs))
+            Logger.LogDiagnostic($"Processor {_processor.Name}: Building...");
+            BuildPhaseUtility.RunBuildSteps(
+                _processor.BuildSteps,
+                buildStep =>
                 {
-                    var parentTocFiles = tocs.Where(s => s.ForSure || uids.Contains(s.Uid)).Select(s => new FileInfos(s.TocKey, (RelativePath)context.FileMapping[s.TocKey].DestFile));
-                    nearestToc = GetNearestToc(parentTocFiles, destFile);
-                    if (nearestToc != null)
-                    {
-                        model.Metadata["_tocRel"] = (string)nearestToc.File.RemoveWorkingFolder().MakeRelativeTo(destFile);
-                        Logger.LogDiagnostic($"It's calculated nearest toc is {nearestToc.Key}");
-                    }
-                }
-            }
-
-            return nearestToc;
+                    buildStep.Build(fileModel, _config.HostService);
+                });
+            var linkToFiles = fileModel.LinkToFiles;
+            var linkToUids = fileModel.LinkToUids;
+            return linkToUids;
         }
 
         private IEnumerable<FileAndType> GetUids(string uid, Context context)
@@ -159,6 +187,7 @@ namespace Microsoft.DocAsCode
                 Name = item.Name,
                 Href = (destFile.GetPathFromWorkingFolder()).UrlEncode().ToString(),
                 CommentId = item.CommentId,
+                ["key"] = key,
             };
             if (item.Names.Count > 0)
             {
@@ -194,8 +223,9 @@ namespace Microsoft.DocAsCode
             if (item.Overload != null)
             {
                 var reference = references.Find(r => r.Uid == item.Overload);
-                if (reference != null)
+                if (reference != null && !reference.Reported)
                 {
+                    reference.Reported = true;
                     yield return GetXRefInfo(reference, key);
                 }
             }

@@ -143,7 +143,7 @@ namespace Microsoft.DocAsCode.SubCommands
                 {
                     var files = config.ChangesFile.Split(',');
                     changeList = new ChangeList();
-                    foreach (var f in files)
+                    foreach (var f in files.Where(s => !string.IsNullOrEmpty(s)))
                     {
                         changeList.Add(f, ChangeKind.Updated);
                     }

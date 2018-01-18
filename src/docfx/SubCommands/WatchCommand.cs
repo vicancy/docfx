@@ -13,6 +13,8 @@ namespace Microsoft.DocAsCode.SubCommands
     using Owin.FileSystems;
     using Owin.Hosting;
     using global::Owin;
+    using System.Threading.Tasks;
+    using Microsoft.Docs.Build;
 
     internal sealed class WatchCommand : ISubCommand
     {
@@ -28,7 +30,13 @@ namespace Microsoft.DocAsCode.SubCommands
 
         public void Exec(SubCommandRunningContext context)
         {
-            Serve(_options.Folder,
+            _options.ChangesFile = string.Empty;
+            var buildCommand = new BuildCommand(_options as BuildCommandOptions);
+
+            buildCommand.Exec(context);
+
+            var folder = EnvironmentContext.OutputDirectory;
+            Serve(folder,
                 _options.Host,
                 _options.Port.HasValue ? _options.Port.Value.ToString() : null);
         }
@@ -60,8 +68,9 @@ namespace Microsoft.DocAsCode.SubCommands
 
             try
             {
-                WebApp.Start(url, builder => builder.UseFileServer(fileServerOptions));
-
+                // WebApp.Start(url, builder => builder.UseFileServer(fileServerOptions));
+                var task = Task.Run(() => Watch.Run(folder));
+                task.Wait();
                 Console.WriteLine($"Serving \"{folder}\" on {url}");
                 Console.ReadLine();
             }

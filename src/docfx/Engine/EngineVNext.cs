@@ -27,6 +27,8 @@ namespace Microsoft.DocAsCode
     internal static class GloballySharedContext
     {
         public static EngineVNext Engine { get; set; }
+        public static Context Context { get; set; }
+        public static PipelineManager PM { get; set; }
     }
 
     internal class EngineVNext
@@ -47,7 +49,7 @@ namespace Microsoft.DocAsCode
             Context context;
             using (new LoggerPhaseScope("InScopeBuild", LogLevel.Info))
             {
-                context = await BuildInscope(globalScopeFiles, inScopeFiles, count);
+                GloballySharedContext.Context = context = await BuildInscope(globalScopeFiles, inScopeFiles, count);
             }
 
             using (new LoggerPhaseScope("DumpContext", LogLevel.Info))
@@ -66,7 +68,29 @@ namespace Microsoft.DocAsCode
             {
                 Logger.LogInfo($"Quick scanning {count} files.");
                 context = await QuickScanAsync(globalScopeFiles);
+
+                // Patch it to global context
+                if (GloballySharedContext.Context != null)
+                {
+                    GloballySharedContext.Context = context = Patch(GloballySharedContext.Context, context);
+                }
+
                 Logger.LogInfo($"{context.FileMapping.Count} files mapping created.");
+            }
+
+            PipelineManager pipeline;
+            if (GloballySharedContext.PM != null)
+            {
+                pipeline = GloballySharedContext.PM;
+            }
+            else
+            {
+                GloballySharedContext.PM = pipeline = new PipelineManager(_config);
+            }
+
+            using (new LoggerPhaseScope("BuildTocMap", LogLevel.Info))
+            {
+                await pipeline.Run(FileAndType.AllToc, context);
             }
 
             using (new LoggerPhaseScope("Build", LogLevel.Info))
@@ -90,10 +114,10 @@ namespace Microsoft.DocAsCode
         private async Task BuildInScopeChunk(IEnumerable<FileAndType> chunks, Context context)
         {
             int count = 0;
-            var pipeline = new PipelineManager(_config);
+
             await Task.WhenAll(chunks.Select(async s =>
             {
-                await pipeline.Run(s, context);
+                await GloballySharedContext.PM.Run(s, context);
                 Interlocked.Increment(ref count);
             }).Concat(new Task[]{ Task.Run(()=>
             {
@@ -110,6 +134,26 @@ namespace Microsoft.DocAsCode
                     Thread.Sleep(3000);
                 }
             }) }));
+        }
+
+        private Context Patch(Context thisContext, Context context)
+        {
+            var fms = thisContext.FileMapping.ToDictionary(s => s.Key, s => s.Value, FilePathComparer.OSPlatformSensitiveStringComparer);
+            var tocs = thisContext.Tocs.ToDictionary(s => s.Key, s => s.Value, FilePathComparer.OSPlatformSensitiveStringComparer);
+            var pums = thisContext.PossibleUidMapping.ToDictionary(s => s.Key, s => s.Value, FilePathComparer.OSPlatformSensitiveStringComparer);
+            foreach (var t in context.FileMapping)
+            {
+                fms[t.Key] = t.Value;  
+            }
+            foreach (var t in context.Tocs)
+            {
+                tocs[t.Key] = t.Value;
+            }
+            foreach (var t in context.PossibleUidMapping)
+            {
+                pums[t.Key] = t.Value;
+            }
+            return new Context(fms, tocs, pums);
         }
 
         private async Task<Context> QuickScanAsync(IEnumerable<FileAndType> files)

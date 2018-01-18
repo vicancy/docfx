@@ -141,7 +141,10 @@ namespace Microsoft.Docs.Build
                         ["asset_id"] = path,
                         ["locale"] = "en-us",
                         ["content_uri"] = $"http://localhost:{port}/{sitePath}",
-                        ["metadata"] = new JObject { ["is_dynamic_rendering"] = isDynamicRendering },
+                        ["metadata"] = new JObject {
+                            ["is_dynamic_rendering"] = isDynamicRendering,
+                            ["context"] = new JObject { }
+                        },
                     });
                 }
             }

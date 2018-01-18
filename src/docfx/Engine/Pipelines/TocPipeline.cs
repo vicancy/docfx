@@ -23,6 +23,10 @@ using static Microsoft.DocAsCode.Utility;
 
 namespace Microsoft.DocAsCode
 {
+    internal class TocMap {
+        public FileAndType Toc { get; set; }
+        public HashSet<string> LinkedTopics { get; set; }
+    }
     internal class TocPipeline
     {
         private readonly Config _config;
@@ -39,7 +43,7 @@ namespace Microsoft.DocAsCode
             Pipeline = new BuildPipeline(controller, new[]
                     {
                         Steps.TocLoaded, Steps.Saved
-                    }, BuildDocument);
+                    },new Type[] { typeof(TocMap)}, BuildDocument);
         }
 
         private async Task BuildDocument(BuildPipeline p, Context context)
@@ -56,7 +60,19 @@ namespace Microsoft.DocAsCode
                 {
                     SourceFile = _file,
                 };
-                GoThrough(model, _file, dep, context);
+
+                // Use uid-possible path mapping for tocmap
+                var paths = new HashSet<string>(FilePathComparer.OSPlatformSensitiveStringComparer);
+                GoThrough(model, _file, dep, context, paths);
+
+                var tocmap = new TocMap
+                {
+                    Toc = _file,
+                    LinkedTopics = paths,
+                };
+
+                await p.Report(tocmap);
+
                 // TODO: include
                 // TODO: xref dependencies
                 BuildPhaseUtility.RunBuildSteps(
@@ -74,18 +90,20 @@ namespace Microsoft.DocAsCode
                 var linkToFiles = fileModel.LinkToFiles;
                 var linkToUids = fileModel.LinkToUids;
                 // wait for the dependent uids to complete
-                using (new LoggerPhaseScope($"Dedendencies({linkToUids.Count}).ExportXrefMap", LogLevel.Info))
+                using (new LoggerPhaseScope($"Dedendencies({linkToUids.Count}).ExportXrefMap"))
                 {
-                    await p.Require(Steps.XrefmapExported, context, linkToUids.SelectMany(s => GetUids(s, context)).ToArray());
+                    var xrefs = await p.Require<XRefSpec[]>(context, linkToUids.SelectMany(s => GetUids(s, context)).ToArray());
+                   
+                    ResolveUid(model, xrefs.SelectMany(s => s).ToDictionary(s => s.Uid, s => s));
                 }
+
                 // update href
-                ResolveUid(model, context);
                 var result = _processor.Save(fileModel);
                 if (result != null)
                 {
                     // apply template
-                    //var manifest = _config.TemplateProcessor.ProcessOne(_fm, result.DocumentType, _config.ApplyTemplateSettings);
-                    //context.ManifestItems.Add(manifest);
+                    var manifest = _config.TemplateProcessor.ProcessOne(fileModel, result.DocumentType, _config.ApplyTemplateSettings);
+                    context.ManifestItems.Add(manifest);
                 }
 
                 await p.Report(Steps.Saved);
@@ -103,11 +121,18 @@ namespace Microsoft.DocAsCode
             }
         }
 
-        private void ResolveUid(TocItemViewModel item, Context context)
+        private void ResolveUid(TocItemViewModel item, Dictionary<string, XRefSpec> xrefs)
         {
+            var hrefType = Utility.GetHrefType(item.TopicHref);
+            if (hrefType == HrefType.RelativeFile)
+            {
+                var path = UriUtility.GetPath(item.TopicHref);
+                var relativePath = ((RelativePath)path).UrlDecode();
+            }
+
             if (item.TopicUid != null)
             {
-                if (!context.XrefSpecMapping.TryGetValue(item.TopicUid, out var xref))
+                if (!xrefs.TryGetValue(item.TopicUid, out var xref))
                 {
                     return;
                 }
@@ -134,11 +159,12 @@ namespace Microsoft.DocAsCode
             {
                 foreach (var i in item.Items)
                 {
-                    ResolveUid(i, context);
+                    ResolveUid(i, xrefs);
                 }
             }
         }
-        private void GoThrough(TocItemViewModel item, FileAndType file, Dependencies dep, Context context)
+
+        private void GoThrough(TocItemViewModel item, FileAndType file, Dependencies dep, Context context, HashSet<string> containedPathKeys)
         {
             if (item == null)
             {
@@ -190,8 +216,7 @@ namespace Microsoft.DocAsCode
                     {
                         var path = ((RelativePath)file.File + (RelativePath)item.Href).GetPathFromWorkingFolder();
                         dep.Links.Add(path);
-                        var pt = new PossibleToc { TocKey = file.Key };
-                        context.FilePossibleTocMapping.AddOrUpdate(path, s => new ConcurrentBag<PossibleToc> { pt }, (k, v) => { v.Add(pt); return v; });
+                        containedPathKeys.Add(path);
                         break;
                     }
                 case HrefType.RelativeFolder:
@@ -219,10 +244,9 @@ namespace Microsoft.DocAsCode
                 dep.Xrefs.Add(item.TopicUid);
                 if (context.PossibleUidMapping.TryGetValue(item.TopicUid, out var files))
                 {
-                    var pt = new PossibleToc { Uid = item.TopicUid, TocKey = file.Key };
-                    foreach (var f in files)
+                    foreach(var f in files)
                     {
-                        context.FilePossibleTocMapping.AddOrUpdate(f, s => new ConcurrentBag<PossibleToc> { pt }, (k, v) => { v.Add(pt); return v; });
+                        containedPathKeys.Add(f);
                     }
                 }
             }
@@ -232,7 +256,7 @@ namespace Microsoft.DocAsCode
             {
                 foreach(var ii in item.Items)
                 {
-                    GoThrough(ii, file, dep, context);
+                    GoThrough(ii, file, dep, context, containedPathKeys);
                 }
             }
         }

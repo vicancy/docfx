@@ -25,13 +25,6 @@ namespace Microsoft.DocAsCode
     {
         public ConcurrentBag<ManifestItem> ManifestItems { get; } = new ConcurrentBag<ManifestItem>();
 
-        public ConcurrentDictionary<string, XRefSpec> XrefSpecMapping { get; } = new ConcurrentDictionary<string, XRefSpec>();
-
-        /// <summary>
-        /// Record file to possible toc mapping
-        /// </summary>
-        public ConcurrentDictionary<string, ConcurrentBag<PossibleToc>> FilePossibleTocMapping { get; } = new ConcurrentDictionary<string, ConcurrentBag<PossibleToc>>(StringComparer.OrdinalIgnoreCase);
-
         /// <summary>
         /// UID-Path mapping, path is always start with ~
         /// </summary>

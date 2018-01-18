@@ -24,6 +24,7 @@ using System.Threading.Tasks;
 
 namespace Microsoft.DocAsCode
 {
+
     public class BuildStep
     {
         private readonly object _syncRoot = new object();
@@ -31,8 +32,15 @@ namespace Microsoft.DocAsCode
             new TaskCompletionSource<object>();
         private volatile TaskCompletionSource<object> _moveNext =
             new TaskCompletionSource<object>();
+
+        private object _value = null;
         private int _require;
         public string Name { get; }
+        public Type Type { get; }
+        public BuildStep(Type type)
+        {
+            Type = type;
+        }
 
         public BuildStep(string name)
         {
@@ -76,8 +84,17 @@ namespace Microsoft.DocAsCode
             await _moveNext.Task;
         }
 
+        public async Task Report<T>(T result)
+        {
+            _value = result;
+            _workCompleted.TrySetResult(result);
+            await _moveNext.Task;
+        }
+
         public Task WorkTask =>
             _workCompleted.Task;
+
+        public async Task<T> GetWorkTask<T>() => (T)(await _workCompleted.Task);
     }
 
     internal class BuildPipeline
@@ -89,10 +106,10 @@ namespace Microsoft.DocAsCode
         private Func<BuildPipeline, Context, Task> CreateTask { get; }
         public Task Current => _current;
 
-        public BuildPipeline(BuildController controller, string[] steps, Func<BuildPipeline, Context, Task> func)
+        public BuildPipeline(BuildController controller, string[] steps, Type[] types, Func<BuildPipeline, Context, Task> func)
         {
             Controller = controller;
-            Steps = Array.ConvertAll(steps, n => new BuildStep(n));
+            Steps = steps.Select(s => new BuildStep(s)).Concat(types.Select(t => new BuildStep(t))).ToArray();// Array.ConvertAll(steps, n => new BuildStep(n));
             CreateTask = func;
         }
 
@@ -110,29 +127,31 @@ namespace Microsoft.DocAsCode
             }
         }
 
-        internal Task EnsureTask(string stepName, Context context)
+        public Task<T> RequireCore<T>(Context context, FileAndType file)
         {
-            lock (_syncRoot)
+            for (int i = 0; i < Steps.Length; i++)
             {
-                var index = Array.FindIndex(Steps, s => s.Name == stepName);
-                if (index == -1)
+                var step = Steps[i];
+                if (step.Type == typeof(T))
                 {
-                    throw new InvalidOperationException();
-                }
-                bool restartTask = false;
-                for (int i = 0; i < index - 1; i++)
-                {
-                    if (!Steps[i].EnsureResumable())
+                    step.Require();
+                    bool restart = false;
+                    for (int j = 0; j < i; j++)
                     {
-                        restartTask = true;
+                        Steps[j].Require();
+                        if (!Steps[j].EnsureResumable())
+                        {
+                            restart = true;
+                        }
                     }
+                    if (restart || Current == null)
+                    {
+                        EnsureTask(context);
+                    }
+                    return step.GetWorkTask<T>();
                 }
-                if (restartTask)
-                {
-                    _current = Task.Run(() => CreateTask(this, context));
-                }
-                return Steps[index].WorkTask;
             }
+            throw new InvalidOperationException("Step not found.");
         }
 
         public Task Require(string step, Context context, FileAndType file) =>
@@ -140,6 +159,12 @@ namespace Microsoft.DocAsCode
 
         public Task Require(string step, Context context, params FileAndType[] files) =>
             Task.WhenAll(Array.ConvertAll(files, file => Controller.BuildAsync(file, step, context)));
+
+        public Task<T[]> Require<T>(Context context, params FileAndType[] files) =>
+            Task.WhenAll(Array.ConvertAll(files, file => Controller.BuildAsync<T>(file, context)));
+
+        public Task<T> Require<T>(Context context, FileAndType file) =>
+            Controller.BuildAsync<T>(file, context);
 
         internal Task Require(Context context)
         {
@@ -186,6 +211,7 @@ namespace Microsoft.DocAsCode
             throw new InvalidOperationException("Step not found.");
         }
 
+        internal Task Report<T>(T val) => Steps.First(s => s.Type == val.GetType()).Report<T>(val);
         internal Task Report(string name) =>
             Steps.First(s => s.Name == name).Report();
     }
@@ -220,6 +246,16 @@ namespace Microsoft.DocAsCode
                 return Task.CompletedTask;
             }
             return pipeline.Require(stepName, context);
+        }
+
+        public Task<T> BuildAsync<T>(FileAndType file, Context context)
+        {
+            var pipeline = _dictionary.GetOrAdd(file, f => _creator(this, f));
+            if (pipeline == null)
+            {
+                return Task.FromResult<T>(default);
+            }
+            return pipeline.RequireCore<T>(context, file);
         }
 
         public void StopAll()

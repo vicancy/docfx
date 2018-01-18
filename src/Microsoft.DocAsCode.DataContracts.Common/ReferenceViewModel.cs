@@ -88,6 +88,10 @@ namespace Microsoft.DocAsCode.DataContracts.Common
                 .Add(string.Empty, Additional)
                 .Create();
 
+        [JsonIgnore]
+        [YamlIgnore]
+        public bool Reported { get; set; }
+
         public ReferenceViewModel Clone()
         {
             var copied = (ReferenceViewModel)MemberwiseClone();

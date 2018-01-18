@@ -11,6 +11,8 @@ namespace Microsoft.DocAsCode.Plugins
     public sealed class FileAndType
         : IEquatable<FileAndType>
     {
+        public static readonly FileAndType AllToc = new FileAndType(EnvironmentContext.BaseDirectory, "AllToc", DocumentType.Article);
+
         [JsonConstructor]
         public FileAndType(string baseDir, string file, DocumentType type, string sourceDir = null, string destinationDir = null)
         {

@@ -37,7 +37,7 @@ namespace Microsoft.DocAsCode
             Pipeline = new BuildPipeline(controller, new[]
                     {
                         Steps.ArticleLoaded, Steps.XrefmapExported, Steps.Saved
-                    }, BuildDocument);
+                    },new Type[] { }, BuildDocument);
         }
 
         private async Task BuildDocument(BuildPipeline p, Context context)
@@ -66,7 +66,8 @@ namespace Microsoft.DocAsCode
 
                 if (fileModel.Properties.XrefSpec != null)
                 {
-                    context.XrefSpecMapping[_file.Key] = ImmutableArray.Create(fileModel.Properties.XrefSpec);
+                    var xrefspecs = ImmutableArray.Create(fileModel.Properties.XrefSpec);
+                    await p.Report(xrefspecs);
                 }
 
                 await p.Report(Steps.XrefmapExported);
@@ -77,11 +78,11 @@ namespace Microsoft.DocAsCode
                 // wait for the dependent uids to complete
                 using (new LoggerPhaseScope($"Dedendencies({linkToUids.Count}).ExportXrefMap", LogLevel.Info))
                 {
-                    await p.Require(Steps.XrefmapExported, context, linkToUids.SelectMany(s => GetUids(s, context)).ToArray());
+                    var xrefs = await p.Require<XRefSpec[]>(context, linkToUids.SelectMany(s => GetUids(s, context)).ToArray());
+                    _config.DBC.XRefSpecMap = new ConcurrentDictionary<string, XRefSpec>(xrefs.SelectMany(s => s).Select(s => new KeyValuePair<string, XRefSpec>(s.Uid, s)));
                 }
 
                 _processor.Save(fileModel);
-                _config.DBC.XRefSpecMap = context.XrefSpecMapping;
 
                 // apply template
                 using (new LoggerPhaseScope("ApplyTemplate"))

@@ -5,19 +5,8 @@ namespace Microsoft.DocAsCode
 {
     using CommandLine;
 
-    [OptionUsage("watch <folder path>")]
-    internal class WatchCommandOptions : ICanPrintHelpMessage
+    [OptionUsage("watch [docfx.json file]")]
+    internal class WatchCommandOptions : BuildCommandOptions
     {
-        [ValueOption(0)]
-        public string Folder { get; set; }
-
-        [Option('n', "hostname", HelpText = "Specify the hostname of the hosted website [localhost]")]
-        public string Host { get; set; }
-
-        [Option('p', "port", HelpText = "Specify the port of the hosted website [8080]")]
-        public int? Port { get; set; }
-
-        [Option('h', "help", HelpText = "Print help message for this sub-command")]
-        public bool PrintHelpMessage { get; set; }
     }
 }

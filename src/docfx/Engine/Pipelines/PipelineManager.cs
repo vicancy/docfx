@@ -31,6 +31,11 @@ namespace Microsoft.DocAsCode
         {
             _controller = new BuildController((controller, file) =>
             {
+                if (file== FileAndType.AllToc)
+                {
+                    return new AllTocPipeline(controller, config).Pipeline;
+                }
+
                 var processor = (from p in Utility.processors
                                  let priority = p.GetProcessingPriority(file)
                                  where priority != ProcessingPriority.NotSupported
