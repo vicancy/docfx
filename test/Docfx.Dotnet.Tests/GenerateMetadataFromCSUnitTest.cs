@@ -3784,7 +3784,7 @@ namespace Test
     }
 
     [Fact]
-    public void TestGenerateMetadataWithNestedNamespaceHrefs()
+    public void TestGenerateMetadataWithNestedNamespaceXrefs()
     {
         // https://github.com/dotnet/docfx/issues/10588
         var codeA = """
@@ -3850,19 +3850,21 @@ namespace Test
         var bazParts = typeBPage.References["Foo.Bar.Baz"].NameParts[SyntaxLanguage.CSharp];
         Assert.Equal(["Foo", ".", "Bar", ".", "Baz"], bazParts.Select(p => p.DisplayName));
         Assert.Null(bazParts.Single(p => p.DisplayName == "Foo").Href);
-        Assert.NotNull(bazParts.Single(p => p.DisplayName == "Bar").Href);
-        Assert.NotNull(bazParts.Single(p => p.DisplayName == "Baz").Href);
+        Assert.Null(bazParts.Single(p => p.DisplayName == "Bar").Href);
+        Assert.Null(bazParts.Single(p => p.DisplayName == "Baz").Href);
+        Assert.Equal("Foo.Bar.TypeFromA.html",
+            typeBPage.ToPageViewModel(new()).References.Single(r => r.Uid == "Foo.Bar.TypeFromA").Href);
 
         var barParts = typeBPage.References["Foo.Bar"].NameParts[SyntaxLanguage.CSharp];
         Assert.Equal(["Foo", ".", "Bar"], barParts.Select(p => p.DisplayName));
         Assert.Null(barParts.Single(p => p.DisplayName == "Foo").Href);
-        Assert.NotNull(barParts.Single(p => p.DisplayName == "Bar").Href);
+        Assert.Null(barParts.Single(p => p.DisplayName == "Bar").Href);
 
         // Same-assembly reference
         var typeAPage = model.Members.Single(m => m.Name == "Foo.Bar.TypeFromA");
         var barPartsA = typeAPage.References["Foo.Bar"].NameParts[SyntaxLanguage.CSharp];
         Assert.Null(barPartsA.Single(p => p.DisplayName == "Foo").Href);
-        Assert.NotNull(barPartsA.Single(p => p.DisplayName == "Bar").Href);
+        Assert.Null(barPartsA.Single(p => p.DisplayName == "Bar").Href);
     }
 
     [Fact]
@@ -3918,11 +3920,10 @@ namespace Test
         Assert.Contains(constructedMethodUid, derivedPage.References.Keys);
         Assert.Contains(constructedPropertyUid, derivedPage.References.Keys);
 
-        // Neither constructed UID is a key in context.Members; the href must still resolve via Method's/Value's original definition.
-        var methodParts = derivedPage.References[constructedMethodUid].NameParts[SyntaxLanguage.CSharp];
-        Assert.Contains(methodParts, p => p.Href != null);
-
-        var propertyParts = derivedPage.References[constructedPropertyUid].NameParts[SyntaxLanguage.CSharp];
-        Assert.Contains(propertyParts, p => p.Href != null);
+        var references = derivedPage.ToPageViewModel(new()).References;
+        Assert.Equal("Foo.Bar.Base-1.html#Foo_Bar_Base_1_Method__0_",
+            references.Single(r => r.Uid == constructedMethodUid).Href);
+        Assert.Equal("Foo.Bar.Base-1.html#Foo_Bar_Base_1_Value",
+            references.Single(r => r.Uid == constructedPropertyUid).Href);
     }
 }
